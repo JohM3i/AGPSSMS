@@ -49,9 +49,9 @@ void init_rfid() {
 
   attachedNewCard = false;
 
-  Serial.println("rfid initialized");
+  D_RFID_PRINTLN("rfid initialized");
 
-  timer_activate_reception = timer_arm(TIME_REFRESH_RFID, activateReception, 0);
+  timer_activate_reception = timer_arm(TIME_REFRESH_RFID, activateReception);
 }
 
 void IRQ_ISR() {
@@ -70,6 +70,7 @@ void loop_rfid() {
         bicycle.setStatus(UNLOCKED);
         enable_buzzer(200);
       }
+      delay(2000);
     }
 
     clearInt();
@@ -81,8 +82,8 @@ void loop_rfid() {
   // The receiving block needs regular retriggering (tell the tag it should transmit??)
   // (mfrc522.PCD_WriteRegister(mfrc522.FIFODataReg,mfrc522.PICC_CMD_REQA);)
   //
-  activateReception();
-  delay(2000);
+  //activateReception();
+  //delay(2000);
 }
 
 
@@ -90,6 +91,7 @@ void loop_rfid() {
  * The function sending to the MFRC522 the needed commands to activate the reception
  */
 void activateReception() {
+  D_RFID_PRINTLN("Timer method: activate reception");
   mfrc522.PCD_WriteRegister(mfrc522.FIFODataReg, mfrc522.PICC_CMD_REQA);
   mfrc522.PCD_WriteRegister(mfrc522.CommandReg, mfrc522.PCD_Transceive);
   mfrc522.PCD_WriteRegister(mfrc522.BitFramingReg, 0x87);
@@ -121,15 +123,15 @@ bool rfid_is_authorized(){
   //------------------------------------------- GET CHECK_NAME
   status = mfrc522.PCD_Authenticate(MFRC522::PICC_CMD_MF_AUTH_KEY_A, block, &key, &(mfrc522.uid)); //line 834 of MFRC522.cpp file
   if (status != MFRC522::STATUS_OK) {
-    Serial.print(F("Authentication failed: "));
-    Serial.println(mfrc522.GetStatusCodeName(status));
+    D_RFID_PRINT(F("Authentication failed: "));
+    D_RFID_PRINTLN(mfrc522.GetStatusCodeName(status));
     return false;
   }
 
   status = mfrc522.MIFARE_Read(block, (byte *) &actual_check_array[0], &len);
   if (status != MFRC522::STATUS_OK) {
-    Serial.print(F("Reading failed: "));
-    Serial.println(mfrc522.GetStatusCodeName(status));
+    D_RFID_PRINT(F("Reading failed: "));
+    D_RFID_PRINTLN(mfrc522.GetStatusCodeName(status));
     return false;
   }
 
@@ -150,21 +152,21 @@ bool rfid_is_authorized(){
     //------------------------------------------- GET PHONE NUMBER
     status = mfrc522.PCD_Authenticate(MFRC522::PICC_CMD_MF_AUTH_KEY_A, block, &key, &(mfrc522.uid)); //line 834 of MFRC522.cpp file
     if (status != MFRC522::STATUS_OK) {
-      Serial.print(F("Authentication failed: "));
-      Serial.println(mfrc522.GetStatusCodeName(status));
+      D_RFID_PRINT(F("Authentication failed: "));
+      D_RFID_PRINTLN(mfrc522.GetStatusCodeName(status));
       return false;
     }
     
     status = mfrc522.MIFARE_Read(block, (byte *) bicycle.phone_number, &len);
     if (status != MFRC522::STATUS_OK) {
-      Serial.print(F("Reading failed: "));
-      Serial.println(mfrc522.GetStatusCodeName(status));
+      D_RFID_PRINT(F("Reading failed: "));
+      D_RFID_PRINTLN(mfrc522.GetStatusCodeName(status));
       return false;
     }
 
     // estimate phone number length
     if(bicycle.phone_number[0] != '+') {
-      Serial.print("Some padding was introduced into phone number. The starting character is not '+'");
+      D_RFID_PRINT("Some padding was introduced into phone number. The starting character is not '+'");
       return false;
     }
     bicycle.length_phone_number = 1;

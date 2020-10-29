@@ -18,6 +18,26 @@ typedef void (*timer_f)(void);
 // the periodic cycle of a timer
 typedef uint16_t timeCycle_t;
 
+typedef uint8_t timePeriod_t;
+
+volatile typedef struct _timer {
+  // the status of the timer (FREE, ARMED, RESERVED, EXPIRED)
+  byte status;
+
+  
+  timeCycle_t roundCount;
+
+  // the time in 
+  timeCycle_t expires;
+  // the callback function
+  timer_f callback;
+} MyTimer;
+
+
+
+
+//the status register itself
+#define REG_STATUS      GPIOR0
 
 enum BICYLCE_STATUS {UNLOCKED, LOCKED, STOLEN};
 
@@ -79,17 +99,17 @@ Bicycle bicycle;
 
 //**************** GLOBAL VARIABLES END **************** //
 
-//****************** TIMER_INTERVALS ******************* //
-// 30 seconds
-#define TIME_ENABLE_SHOCK_SENSOR_AGAIN 300
+//*************** TIMER_INTERVALS IN MS **************** //
+// 
+#define TIME_ENABLE_SHOCK_SENSOR_AGAIN 30000
 // two seconds
-#define TIME_REFRESH_RFID 20
+#define TIME_REFRESH_RFID 2000
 // one single day
-#define SMS_CHECK_NEW_SMS 864000
+#define SMS_CHECK_NEW_SMS 8
 // 20 seconds
-#define TIME_TO_ACQUIRE_GPS_LOCATION 20
+#define TIME_TO_ACQUIRE_GPS_LOCATION 20000
 
-//**************** TIMER_INTERVALS END ***************** //
+//************* TIMER_INTERVALS IN MS END ************** //
 
 
 //********************* VARIABLES ********************** //
@@ -104,11 +124,11 @@ void setup() {
 
   Serial.println("Initializing ...");
 
-  //init_timer();
+  init_timer();
   init_buzzer();
   //init_gps();
   init_rfid();
-  //init_shock();
+  init_shock();
   //init_sim();
   
   Serial.println("Initialization end");
@@ -117,7 +137,7 @@ void setup() {
 void loop() {
 
   // first check for timer events
-  //timer_notify();
+  timer_notify();
 
   //
   loop_rfid();

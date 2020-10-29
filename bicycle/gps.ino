@@ -11,8 +11,6 @@ TinyGPSLocation currentLocation;
 SoftwareSerial gps_serial_connection(GPS_SERIAL_RX_PIN, GPS_SERIAL_TX_PIN); //RX=pin 10, TX=pin 11
 TinyGPSPlus gps;//This is the GPS object that will pretty much do all the grunt work with the NMEA data
 
-
-
 void init_gps() {
   
   

@@ -1,5 +1,5 @@
 
-#define BUZZER_PIN 2
+#define BUZZER_PIN 6
 
 void init_buzzer() {
   // declare the buzzer pin as a output source.
@@ -12,7 +12,7 @@ void loop_buzzer(){
 
 }
 
-void enable_buzzer(uint8_t ms_sound, uint8_t repeat = 1, uint8_t delay_ms = 0){
+void enable_buzzer(unsigned int ms_sound, unsigned int repeat = 1, unsigned int delay_ms = 0){
   for(uint8_t i = 0u; i < repeat; i++) {
     digitalWrite(BUZZER_PIN, HIGH);
     Serial.println("buzzer on");

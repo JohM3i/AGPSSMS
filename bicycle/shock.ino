@@ -1,8 +1,10 @@
-#define SHOCK_SENSOR_INTERRUPT_PIN 3
+#define SHOCK_SENSOR_INTERRUPT_PIN 5
 #define SHOCK_SENSOR_PWR_PIN 4
 
 void set_shock_sensor_enabled(bool enabled) {
   digitalWrite(SHOCK_SENSOR_PWR_PIN, enabled ? HIGH : LOW);
+  D_SHOCK_PRINT("Set Shock sensor interrupt enabled: ");
+  D_SHOCK_PRINTLN(enabled);
 
   if(enabled) {
     // add the interrupt routine
@@ -52,13 +54,15 @@ void loop_shock(){
   }
   
   if(shock_registered) {
-    Serial.println("A shock has been registered");
-    shock_registered = false;
+    D_SHOCK_PRINTLN("A shock has been registered");
+    
+    // disable shock sensor
     set_shock_sensor_enabled(false);
+    shock_registered = false;
+    // after some time, enable shock sensor again
+    shock_sensor_timer_id = timer_arm(TIME_ENABLE_SHOCK_SENSOR_AGAIN, timer_enable_shock_sensor);
 
     // update GPS location if possible   
     update_gps_location(bicycle.current_location);
-    
-    shock_sensor_timer_id = timer_arm(TIME_ENABLE_SHOCK_SENSOR_AGAIN, timer_enable_shock_sensor, 0);
   }
 }
