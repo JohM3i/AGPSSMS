@@ -8,7 +8,7 @@ void init_buzzer() {
 }
 
 
-void loop_buzzer(){
+void loop_buzzer(Bicycle &bicycle){
 
 }
 

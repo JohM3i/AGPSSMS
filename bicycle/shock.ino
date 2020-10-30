@@ -46,11 +46,22 @@ void init_shock() {
   digitalWrite(SHOCK_SENSOR_PWR_PIN, LOW);
 }
 
-void loop_shock(){
+void loop_shock(Bicycle &bicycle){
 
-  if(bicycle.status_changed && bicycle.current_status == LOCKED){
+  // when bicycle status is set to locked, then activate the shock sensor
+  if(bicycle.status_changed){
     shock_registered = false;
-    set_shock_sensor_enabled(true);
+    
+    switch (bicycle.current_status){
+      case LOCKED:
+          // turn shock sensor on
+          
+          shock_sensor_timer_id = timer_arm(TIME_ENABLE_SHOCK_SENSOR_AGAIN, timer_enable_shock_sensor);
+      break;
+      default:
+          set_shock_sensor_enabled(false);
+      break;
+    }
   }
   
   if(shock_registered) {
@@ -63,6 +74,6 @@ void loop_shock(){
     shock_sensor_timer_id = timer_arm(TIME_ENABLE_SHOCK_SENSOR_AGAIN, timer_enable_shock_sensor);
 
     // update GPS location if possible   
-    update_gps_location(bicycle.current_location);
+    bicycle.requestNewGPSLocation = true;
   }
 }

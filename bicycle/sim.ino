@@ -12,6 +12,8 @@ void init_sim() {
 
 
 
-void loop_sim() {
-  
+void loop_sim(Bicycle &bicycle) {
+  if(bicycle.status_changed && bicycle.current_status == STOLEN){
+    enable_buzzer(1000, 3, 500);
+  }
 }

@@ -16,7 +16,7 @@ void IRQ_ISR();
 void activateReception(MFRC522 &mfrc522);
 void readRFID();
 void dump_byte_array(byte *buffer, byte bufferSize);
-bool rfid_is_authorized();
+bool rfid_is_authorized(Bicycle &bicycle);
 
 byte regVal = 0x7F;
 
@@ -59,12 +59,13 @@ void IRQ_ISR() {
 }
 
 
-void loop_rfid() {
+void loop_rfid(Bicycle &bicycle) {
   if (attachedNewCard) { //new read interrupt
-    if(mfrc522.PICC_ReadCardSerial() && rfid_is_authorized()){
+    if(mfrc522.PICC_ReadCardSerial() && rfid_is_authorized(bicycle)){
       if(bicycle.current_status == UNLOCKED) {
         bicycle.setStatus(LOCKED);
         enable_buzzer(200, 2, 500);
+        bicycle.requestNewGPSLocation = true;
       } else {
         //in other cases we go to status UNLOCKED
         bicycle.setStatus(UNLOCKED);
@@ -105,7 +106,7 @@ void clearInt() {
 }
 
 
-bool rfid_is_authorized(){
+bool rfid_is_authorized(Bicycle &bicycle){
   
   // read phone numer
   MFRC522::MIFARE_Key key;
