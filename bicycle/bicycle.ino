@@ -2,7 +2,7 @@
 #include "SoftwareSerial.h"
 #include "TinyGPS++.h"
 #include <SPI.h>
-#include <MFRC522.h>
+#include "MFRC522.h"
 
 #include "MegaAvr20Mhz.h"
 #include "EveryTimerB.h"
@@ -16,9 +16,7 @@ typedef uint8_t timer_t;
 // the timer callback function
 typedef void (*timer_f)(void);
 // the periodic cycle of a timer
-typedef uint16_t timeCycle_t;
-
-typedef uint8_t timePeriod_t;
+typedef unsigned long timeCycle_t;
 
 // the id of an invalid timer
 #define TIMER_INVALID 0xff
@@ -35,6 +33,8 @@ typedef uint8_t timePeriod_t;
 #define SMS_CHECK_NEW_SMS 8
 // 20 seconds
 #define TIME_TO_ACQUIRE_GPS_LOCATION 20000
+
+#define TIME_CYCLE_READ_BATTERY_CAPACITY 2000
 
 //************* TIMER_INTERVALS IN MS END ************** //
 
@@ -73,6 +73,7 @@ void timer_notify();
 
 
 enum BICYLCE_STATUS {UNLOCKED, LOCKED, STOLEN};
+
 
 struct GPSLocation {
 
@@ -158,6 +159,9 @@ struct Bicycle {
   
   char phone_number[18];
   byte length_phone_number;
+
+  int battery_voltage;
+  uint8_t battery_percent;
 };
 
 //************ FORWARD DECLARATIONS - Methods ************ //
@@ -171,6 +175,7 @@ FILE_FORWARD(gps);
 FILE_FORWARD(rfid);
 FILE_FORWARD(shock);
 FILE_FORWARD(sim);
+FILE_FORWARD(battery);
 
 #undef FILE_FORWARD
 
@@ -195,6 +200,7 @@ void setup() {
 
   Serial.println("Initializing ...");
 
+  init_battery();
   init_timer();
   init_buzzer();
   init_gps();
@@ -210,10 +216,14 @@ void loop() {
   // first check for timer events
   timer_notify();
 
-  //
+  loop_battery(bicycle);
+
   loop_rfid(bicycle);
+
   loop_shock(bicycle);
+  
   loop_gps(bicycle);
+  
   loop_sim(bicycle);
   
   // after a cycle,
