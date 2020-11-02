@@ -25,17 +25,6 @@ void timer_enable_shock_sensor(){
 bool volatile shock_registered;
 
 void shock_sensor_isr(){
-  // interrupt method which is triggered, when the shock sensor reports vibrations/shocks (rising flag)
-
-  // A vibration happened - check if the bicycle is still secure
-
-  // Tasks:
-  // - Disable interrupt since multiple interrupts could occour for the same event
-  // - Acquire a GPS signal and check for changes in location
-  // --> 1. Bike stolen
-  // -----> Change mode of the program to stolen and do the other service routines
-  // --> 2. Nothing happened
-  // -----> After some delay, enable the interrupt again
   shock_registered = true;
 }
 
@@ -55,7 +44,6 @@ void loop_shock(Bicycle &bicycle){
     switch (bicycle.current_status){
       case LOCKED:
           // turn shock sensor on
-          
           shock_sensor_timer_id = timer_arm(TIME_ENABLE_SHOCK_SENSOR_AGAIN, timer_enable_shock_sensor);
       break;
       default:

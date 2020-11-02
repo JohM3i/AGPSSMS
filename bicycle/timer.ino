@@ -28,6 +28,9 @@ void init_timer(){
 
 
 static void timer_free(MyTimer* aTimer) {
+  if(aTimer->status = TIMER_STATUS_EXPIRED){
+    number_of_expired_timers--;
+  }
   aTimer->status = TIMER_STATUS_FREE;
 }
 

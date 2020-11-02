@@ -34,7 +34,9 @@ typedef unsigned long timeCycle_t;
 // 20 seconds
 #define TIME_TO_ACQUIRE_GPS_LOCATION 20000
 
-#define TIME_CYCLE_READ_BATTERY_CAPACITY 2000
+#define TIME_CYCLE_READ_BATTERY_CAPACITY 300000
+
+#define TIME_SMS_SEND_POSITION 1800000
 
 //************* TIMER_INTERVALS IN MS END ************** //
 
@@ -135,6 +137,98 @@ struct ReadGPSStateHandler {
   GPSLocation *location_to_determine;
 };
 
+
+enum GPSState {GPS_IDLE, GPS_START, GPS_BUSY, GPS_SUCCESS, GPS_TIMEOUT};
+
+class GPSHandler {
+public:
+  GPSHandler(byte rxPin, byte txPin) : serial(rxPin, txPin){
+    state = GPS_IDLE;
+  }
+
+  void init(){
+    serial.begin(9600);
+    tearDown();
+  }
+
+  void start_tracking(GPSLocation *location){
+    location_to_determine = location;
+    state = GPS_START;
+  }
+
+  void read_timed_out(){
+    timer_disarm(&timer_id);
+    state = GPS_TIMEOUT;
+  }
+
+  GPSState loop(){
+
+    switch (state){
+      case GPS_START:
+        // set timer and set mode to busy
+        // wakeup gps device
+        wakeup();
+        timer_id = timer_arm(TIME_TO_ACQUIRE_GPS_LOCATION, gpsReadTimeOut);
+        state = GPS_BUSY;
+      case GPS_BUSY:
+        // read gps info from serial
+        //While there are characters to come from the GPS
+        while(serial.available()) { 
+          //This feeds the serial NMEA data into the library one char at a time
+          tiny_gps.encode(serial.read());
+        }
+
+        if(tiny_gps.location.isUpdated()){
+          // if we get gps state successfully, we change state to success
+          
+          state = GPS_SUCCESS;
+        } else {
+          // end loop
+          break;
+        }
+      case GPS_SUCCESS:
+        // write data
+        location_to_determine->update(tiny_gps.location);
+        //D_GPS_PRINT("Acquired new gps location ");
+        //D_GPS_PRINT(String(location_to_determine->lat(),8));
+        //D_GPS_PRINT(",");
+        //D_GPS_PRINTLN(String(location_to_determine->lng(),8));
+        
+        timer_disarm(&timer_id);
+        tearDown();
+        return GPS_SUCCESS;
+        break;
+      case GPS_TIMEOUT:
+        // timeout called, tear down
+        tearDown();
+        return GPS_TIMEOUT;
+        break;
+      case GPS_IDLE:
+        // do nothing
+        break;
+    }
+
+
+    return state;
+  }
+  
+private:
+  void wakeup(){
+    serial.listen();
+  }
+  
+  void tearDown(){
+    state = GPS_IDLE;
+  }
+
+  GPSLocation *location_to_determine;
+  GPSState state;
+  timer_t timer_id;
+
+  SoftwareSerial serial;
+  TinyGPSPlus tiny_gps;
+};
+
 struct Bicycle {
   Bicycle() {
     current_status = UNLOCKED;
@@ -160,7 +254,7 @@ struct Bicycle {
   char phone_number[18];
   byte length_phone_number;
 
-  int battery_voltage;
+  uint16_t battery_voltage;
   uint8_t battery_percent;
 };
 
@@ -180,12 +274,6 @@ FILE_FORWARD(battery);
 #undef FILE_FORWARD
 
 
-
-// gps
-bool update_gps_location(GPSLocation &location);
-bool is_bicylce_stolen();
-
-
 //************** END FORWARD DECLARATIONS ************** //
 
 //****************** GLOBAL VARIABLES ****************** //
@@ -201,13 +289,12 @@ void setup() {
   Serial.println("Initializing ...");
 
   init_battery();
-  init_timer();
   init_buzzer();
   init_gps();
   init_rfid();
   init_shock();
   init_sim();
-  
+  init_timer();
   Serial.println("Initialization end");
 }
 

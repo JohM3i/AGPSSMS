@@ -1,11 +1,11 @@
 
 #define BATTERY_CAPACITY_MAX_MILLI_VOLT 4050
-#define BATTERY_CAPACITY_MIN_MILLI_VOLT 3300
+#define BATTERY_CAPACITY_MIN_MILLI_VOLT 3100
 
 #define BATTERY_VBAT_ANALOG_PIN A2
 
 // TODO: Important !! validate if operation voltage is 5V on a fully charged battery
-#define BATTERY_OPERATION_MILLI_VOLT 4720
+#define BATTERY_OPERATION_MILLI_VOLT 5000
 
 
 timer_t timer_id_read_battery;
@@ -13,11 +13,9 @@ timer_t timer_id_read_battery;
 uint8_t voltage_to_percent(uint16_t voltage) {
   
   // linear interpolation between min and ma(x voltage
-  int16_t percent = round(((voltage - BATTERY_CAPACITY_MIN_MILLI_VOLT) * 100.0) / (double)(BATTERY_CAPACITY_MAX_MILLI_VOLT - BATTERY_CAPACITY_MIN_MILLI_VOLT));
+  int16_t percent = round(((min(voltage - BATTERY_CAPACITY_MIN_MILLI_VOLT,0)) * 100.0) / (double)(BATTERY_CAPACITY_MAX_MILLI_VOLT - BATTERY_CAPACITY_MIN_MILLI_VOLT));
 
-  if(percent < 0){
-    return 0u;
-  } else if(percent > 100){
+  if(percent > 100){
     return 100u;
   }
   return (uint8_t) percent;

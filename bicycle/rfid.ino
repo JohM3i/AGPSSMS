@@ -63,15 +63,19 @@ void loop_rfid(Bicycle &bicycle) {
   if (attachedNewCard) { //new read interrupt
     if(mfrc522.PICC_ReadCardSerial() && rfid_is_authorized(bicycle)){
       if(bicycle.current_status == UNLOCKED) {
+        // goto status locked
         bicycle.setStatus(LOCKED);
         enable_buzzer(200, 2, 500);
         bicycle.requestNewGPSLocation = true;
       } else {
+        // goto status unlocked
         //in other cases we go to status UNLOCKED
         bicycle.setStatus(UNLOCKED);
         enable_buzzer(200);
       }
       delay(2000);
+    } else {
+      // goto status PAIRING
     }
 
     clearInt();
