@@ -38,11 +38,11 @@ void init_shock() {
 void loop_shock(Bicycle &bicycle){
 
   // when bicycle status is set to locked, then activate the shock sensor
-  if(bicycle.status_changed){
+  if(bicycle.status_changed()){
     shock_registered = false;
     
-    switch (bicycle.current_status){
-      case LOCKED:
+    switch (bicycle.current_status()){
+      case BICYCLE_STATUS::LOCKED:
           // turn shock sensor on
           shock_sensor_timer_id = timer_arm(TIME_ENABLE_SHOCK_SENSOR_AGAIN, timer_enable_shock_sensor);
       break;
@@ -61,7 +61,7 @@ void loop_shock(Bicycle &bicycle){
     // after some time, enable shock sensor again
     shock_sensor_timer_id = timer_arm(TIME_ENABLE_SHOCK_SENSOR_AGAIN, timer_enable_shock_sensor);
 
-    // update GPS location if possible   
-    bicycle.requestNewGPSLocation = true;
+    // update GPS location if possible
+    bicycle.set_gps_request(GPSRequest::GPS_REQ_SHOCK);
   }
 }

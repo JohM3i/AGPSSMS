@@ -62,15 +62,15 @@ void IRQ_ISR() {
 void loop_rfid(Bicycle &bicycle) {
   if (attachedNewCard) { //new read interrupt
     if(mfrc522.PICC_ReadCardSerial() && rfid_is_authorized(bicycle)){
-      if(bicycle.current_status == UNLOCKED) {
+      if(bicycle.current_status() == BICYCLE_STATUS::UNLOCKED) {
         // goto status locked
-        bicycle.setStatus(LOCKED);
+        bicycle.setStatus(BICYCLE_STATUS::LOCKED);
         enable_buzzer(200, 2, 500);
-        bicycle.requestNewGPSLocation = true;
+        bicycle.set_gps_request(GPSRequest::GPS_REQ_SHOCK);
       } else {
         // goto status unlocked
         //in other cases we go to status UNLOCKED
-        bicycle.setStatus(UNLOCKED);
+        bicycle.setStatus(BICYCLE_STATUS::UNLOCKED);
         enable_buzzer(200);
       }
       delay(2000);

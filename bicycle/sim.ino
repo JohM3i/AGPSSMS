@@ -47,23 +47,51 @@ void sendSMS(String &message, String &phoneNumber){
 String phone_number = "+4915779517206";
 
 void sms_send_current_position(){
-    String lat(bicycle.locked_location.lat(), 8);
-    String lng(bicycle.locked_location.lng(), 8);
+    String lat(bicycle.current_location()->lat(), 8);
+    String lng(bicycle.current_location()->lng(), 8);
     String volt(bicycle.battery_voltage);
     String percent(bicycle.battery_percent);
     
-    String message = "Dein Fahrrad wurde geklaut. Die aktuelle position:\nhttps://www.google.com/maps/?q=" + lat +"," + lng + 
+    String message = "Dein Fahrrad wurde geklaut.\nDie aktuelle position:\nhttps://www.google.com/maps/?q=" + lat +"," + lng + 
     "\nAkkustand: " + volt + "mv" + " (" + percent + "%)";
     
     sendSMS(message, phone_number);
 }
 
 
+void sms_send_status() {
+  
+}
+
+
+
 timer_t timer_sim;
 
+void trigger_acqurie_gps_and_send_sms(){
+  bicycle.set_gps_request(GPSRequest::GPS_REQ_SIM_STOLEN);  
+}
+
 void loop_sim(Bicycle &bicycle) {
-  if(bicycle.status_changed && bicycle.current_status == STOLEN){
-    sms_send_current_position();
-    timer_sim = timer_arm(TIME_SMS_SEND_POSITION, sms_send_current_position);
+  // check for receiving sms
+  
+  if(bicycle.status_changed()){
+
+    if(bicycle.current_status() == BICYCLE_STATUS::STOLEN) {
+      // send info about stolen
+      sms_send_current_position();
+      timer_sim = timer_arm(TIME_SMS_SEND_POSITION, trigger_acqurie_gps_and_send_sms);
+    }
+
+    if(bicycle.previous_status() == BICYCLE_STATUS::STOLEN) {
+      // disable send sms
+      timer_disarm(&timer_sim);
+    }
+  }
+
+  if(bicycle.new_gps_receive_available(GPSReceive::GPS_REC_SIM_STOLEN)){
+
+    if(bicycle.current_status() == BICYCLE_STATUS::STOLEN){
+      sms_send_current_position();
+    }
   }
 }

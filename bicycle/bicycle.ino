@@ -74,7 +74,7 @@ void timer_disarm(timer_t* aTimer);
 void timer_notify();
 
 
-enum BICYLCE_STATUS {UNLOCKED, LOCKED, STOLEN};
+enum class BICYCLE_STATUS {UNLOCKED, LOCKED, STOLEN};
 
 
 struct GPSLocation {
@@ -108,42 +108,17 @@ struct GPSLocation {
 
 void gpsReadTimeOut();
 
-struct ReadGPSStateHandler {
 
-  ReadGPSStateHandler() {
-    gps_timer_id = TIMER_INVALID;
-    reset();
-  }
+enum class GPSState {GPS_IDLE, GPS_START, GPS_BUSY, GPS_SUCCESS, GPS_TIMEOUT};
 
-  void runTimer(){
-    is_still_time = true;
-    gps_timer_id = timer_arm(TIME_TO_ACQUIRE_GPS_LOCATION, gpsReadTimeOut);
-  }
+enum class GPSRequest {GPS_REQ_IDLE, GPS_REQ_SHOCK, GPS_REQ_SIM_STOLEN, GPS_REQ_SIM_STATUS};
 
-  void reset() {
-    timer_disarm(&gps_timer_id);
-    read_data_from_gps_modul = false;
-    was_read_success = false;
-    is_still_time = false;
-    location_to_determine = NULL;
-  }
-
-  timer_t gps_timer_id;
-
-  bool read_data_from_gps_modul;
-  bool was_read_success;
-  volatile bool is_still_time;
-  
-  GPSLocation *location_to_determine;
-};
-
-
-enum GPSState {GPS_IDLE, GPS_START, GPS_BUSY, GPS_SUCCESS, GPS_TIMEOUT};
+enum class GPSReceive {GPS_REC_IDLE, GPS_REC_SHOCK, GPS_REC_SIM_STOLEN, GPS_REC_SIM_STATUS};
 
 class GPSHandler {
 public:
   GPSHandler(byte rxPin, byte txPin) : serial(rxPin, txPin){
-    state = GPS_IDLE;
+    state = GPSState::GPS_IDLE;
   }
 
   void init(){
@@ -151,26 +126,27 @@ public:
     tearDown();
   }
 
-  void start_tracking(GPSLocation *location){
+  void start_tracking(GPSLocation *location, GPSRequest gpsRequest){
     location_to_determine = location;
-    state = GPS_START;
+    state = GPSState::GPS_START;
+    request = gpsRequest;
   }
 
   void read_timed_out(){
     timer_disarm(&timer_id);
-    state = GPS_TIMEOUT;
+    state = GPSState::GPS_TIMEOUT;
   }
 
   GPSState loop(){
 
     switch (state){
-      case GPS_START:
+      case GPSState::GPS_START:
         // set timer and set mode to busy
         // wakeup gps device
         wakeup();
         timer_id = timer_arm(TIME_TO_ACQUIRE_GPS_LOCATION, gpsReadTimeOut);
-        state = GPS_BUSY;
-      case GPS_BUSY:
+        state = GPSState::GPS_BUSY;
+      case GPSState::GPS_BUSY:
         // read gps info from serial
         //While there are characters to come from the GPS
         while(serial.available()) { 
@@ -181,12 +157,12 @@ public:
         if(tiny_gps.location.isUpdated()){
           // if we get gps state successfully, we change state to success
           
-          state = GPS_SUCCESS;
+          state = GPSState::GPS_SUCCESS;
         } else {
           // end loop
           break;
         }
-      case GPS_SUCCESS:
+      case GPSState::GPS_SUCCESS:
         // write data
         location_to_determine->update(tiny_gps.location);
         //D_GPS_PRINT("Acquired new gps location ");
@@ -196,20 +172,40 @@ public:
         
         timer_disarm(&timer_id);
         tearDown();
-        return GPS_SUCCESS;
+        return GPSState::GPS_SUCCESS;
         break;
-      case GPS_TIMEOUT:
+      case GPSState::GPS_TIMEOUT:
         // timeout called, tear down
         tearDown();
-        return GPS_TIMEOUT;
+        return GPSState::GPS_TIMEOUT;
         break;
-      case GPS_IDLE:
+      case GPSState::GPS_IDLE:
         // do nothing
         break;
     }
 
 
     return state;
+  }
+
+  GPSReceive pop_receiver(){
+    GPSReceive retVal = GPSReceive::GPS_REC_IDLE;
+    switch (request){
+      case GPSRequest::GPS_REQ_SHOCK:
+      retVal =  GPSReceive::GPS_REC_SHOCK;
+      break;
+      case GPSRequest::GPS_REQ_SIM_STOLEN:
+      retVal =  GPSReceive::GPS_REC_SIM_STOLEN;
+      break;
+      case GPSRequest::GPS_REQ_SIM_STATUS:
+      retVal =  GPSReceive::GPS_REC_SIM_STATUS;
+      break;
+      default:
+      break;
+    }
+    // set request back to idle
+    request = GPSRequest::GPS_REQ_IDLE;
+    return retVal;
   }
   
 private:
@@ -218,44 +214,116 @@ private:
   }
   
   void tearDown(){
-    state = GPS_IDLE;
+    state = GPSState::GPS_IDLE;
   }
 
   GPSLocation *location_to_determine;
   GPSState state;
+  GPSRequest request;
   timer_t timer_id;
 
   SoftwareSerial serial;
   TinyGPSPlus tiny_gps;
 };
 
-struct Bicycle {
+class Bicycle {
+public:
   Bicycle() {
-    current_status = UNLOCKED;
-    previous_status = UNLOCKED;
-    status_changed = false;
-    requestNewGPSLocation = false;
+    _current_status = BICYCLE_STATUS::UNLOCKED;
+    _previous_status = BICYCLE_STATUS::UNLOCKED;
+    _status_changed = false;
+    _gps_receive = GPSReceive::GPS_REC_IDLE;
   }
 
-  void setStatus(BICYLCE_STATUS status){
-    previous_status = current_status;
-    current_status = status;
-    status_changed = true;
+  void setStatus(BICYCLE_STATUS status){
+    _previous_status = _current_status;
+    _current_status = status;
+    _status_changed = true;
   }
-  
-  BICYLCE_STATUS current_status;
-  BICYLCE_STATUS previous_status;
-  
-  bool status_changed;
-  GPSLocation locked_location;
-  GPSLocation current_location;
-  bool requestNewGPSLocation;
-  
+
+inline BICYCLE_STATUS current_status() const {
+  return _current_status;
+}
+
+inline BICYCLE_STATUS previous_status() const {
+  return _previous_status;
+}
+
+
+bool status_changed() const {
+  return _status_changed;
+}
+
+void set_status_changed(bool status){
+  _status_changed = status;
+}
+
+bool new_gps_receive_available(GPSReceive receiver){
+  bool retVal = receiver == _gps_receive;
+  if(retVal) {
+     // status gets handled
+     _gps_receive = GPSReceive::GPS_REC_IDLE;
+  }
+  return retVal;
+}
+
+void set_gps_receiver(GPSReceive receiver){
+  _gps_receive = receiver;
+}
+
+void set_gps_request(GPSRequest request){
+  _gps_request = request;
+}
+
+void invalidat_gps_coordinates(){
+  _locked_location._isValid = false;
+  _current_location._isValid = false;
+}
+
+GPSRequest gps_request() const {
+  return _gps_request;
+}
+
+GPSLocation * locked_location(){
+  return &_locked_location;
+}
+
+GPSLocation * current_location(){
+  return &_current_location;
+}
+
+public:
   char phone_number[18];
   byte length_phone_number;
 
+  // the capacity of the battery in mini volt
   uint16_t battery_voltage;
+  
+  // the capacity of the battery in percent (range 0-100);
   uint8_t battery_percent;
+
+private:
+  // the current state of the bicycle
+  BICYCLE_STATUS _current_status;
+  // the previous state of the bicycle
+  BICYCLE_STATUS _previous_status;
+
+  // denotes, if during one main loop the current status of the bicycle has changed
+  bool _status_changed;
+
+  // the gps location when the bicycle gets locked
+  GPSLocation _locked_location;
+  
+  // the current location of the bicycle
+  GPSLocation _current_location;
+
+  // GPS value which denotes that a component or event requests GPS coordinates.
+  // When the gps module recognizes a request, this field gets a default/dummy value
+  GPSRequest _gps_request;
+
+  // Value which shows if a GPS value was acquired for a given event/modul.
+  // THis value is set when acquiring GPS data was successfull or failed (timeout).
+  GPSReceive _gps_receive;
 };
 
 //************ FORWARD DECLARATIONS - Methods ************ //
@@ -314,8 +382,8 @@ void loop() {
   loop_sim(bicycle);
   
   // after a cycle,
-  if(bicycle.status_changed){
-    bicycle.status_changed = false;
+  if(bicycle.status_changed()){
+    bicycle.set_status_changed(false);
     Serial.print("current phone number: ");
     for(byte i = 0; i< bicycle.length_phone_number; i++){
       Serial.write(bicycle.phone_number[i]);
