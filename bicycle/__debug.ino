@@ -7,6 +7,7 @@
 
 #define ARDUINO_DEBUG_BATTERY
 
+#define ARDUINO_DEBUG_SIM
 
 
 #if defined(ARDUINO_DEBUG)
@@ -69,4 +70,14 @@
   #define D_BATTERY_PRINT(text)
   #define D_BATTERY_PRINTLN(text)
   #define D_BATTERY_WRITE(text)
+#endif
+
+#if defined(ARDUINO_DEBUG_SIM)
+ #define D_SIM_PRINT(text) D_PRINT(text)
+ #define D_SIM_PRINTLN(text) D_PRINTLN(text)
+ #define D_SIM_WRITE(text) D_WRITE(text)
+#else
+  #define D_SIM_PRINT(text)
+  #define D_SIM_PRINTLN(text)
+  #define D_SIM_WRITE(text)
 #endif

@@ -6,7 +6,7 @@
 #define BATTERY_VBAT_ANALOG_PIN A2
 
 // TODO: Important !! validate if operation voltage is 5V on a fully charged battery
-#define BATTERY_OPERATION_MILLI_VOLT 5000
+#define BATTERY_OPERATION_MILLI_VOLT 4720
 
 
 timer_t timer_id_read_battery;
@@ -14,12 +14,19 @@ timer_t timer_id_read_battery;
 uint8_t voltage_to_percent(uint16_t voltage) {
   
   // linear interpolation between min and ma(x voltage
-  int16_t percent = round(((min(voltage - BATTERY_CAPACITY_MIN_MILLI_VOLT,0)) * 100.0) / (double)(BATTERY_CAPACITY_MAX_MILLI_VOLT - BATTERY_CAPACITY_MIN_MILLI_VOLT));
+  voltage = voltage - BATTERY_CAPACITY_MIN_MILLI_VOLT;
+  if(voltage > BATTERY_OPERATION_MILLI_VOLT){
+    // we had an overflow -> less than 0%
+    voltage = 0;
+  }
+  
+  // voltage * 100 
+  uint8_t percent = round((voltage * 100.0) / (float)(BATTERY_CAPACITY_MAX_MILLI_VOLT - BATTERY_CAPACITY_MIN_MILLI_VOLT));
 
   if(percent > 100){
     return 100u;
   }
-  return (uint8_t) percent;
+  return percent;
 }
 
 void read_battery_capacity(){
@@ -40,11 +47,22 @@ void read_battery_capacity(){
   bicycle.battery_percent = percent;
 }
 
+void start_battery_watch(){
+  timer_id_read_battery = timer_arm(TIME_CYCLE_READ_BATTERY_CAPACITY, read_battery_capacity);
+}
+
 void init_battery() {
   pinMode(BATTERY_VBAT_ANALOG_PIN, INPUT);
-  read_battery_capacity();
 
-  timer_id_read_battery = timer_arm(TIME_CYCLE_READ_BATTERY_CAPACITY, read_battery_capacity);
+  read_battery_capacity();
+  start_battery_watch();
+}
+
+
+
+
+void stop_battery_watch(){
+  timer_disarm(&timer_id_read_battery);
 }
 
 void loop_battery(Bicycle &bicycle){

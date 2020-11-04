@@ -8,7 +8,7 @@
 #include "EveryTimerB.h"
 #include <avr/sleep.h>
 
-
+#include "GSM_Sim_SMS.h"
 
 //************  FORWARD DECLARATIONS - Types  ************ //
 // the timer id
@@ -44,13 +44,13 @@ typedef unsigned long timeCycle_t;
 //********************* VARIABLES ********************** //
 #define GPS_DISTANCE_TO_STOLEN_IN_METERS 0.1
 #define RFID_CHECK_NAME "Niklas"
+#define SMS_SEND_LOW_BATTERY_AT_PERCENT 25
 //******************* VARIABLES END ******************** //
 
 
 volatile typedef struct _timer {
   // the status of the timer (FREE, ARMED, RESERVED, EXPIRED)
   byte status;
-
   
   timeCycle_t roundCount;
 
@@ -74,8 +74,9 @@ void timer_disarm(timer_t* aTimer);
 void timer_notify();
 
 
-enum class BICYCLE_STATUS {UNLOCKED, LOCKED, STOLEN};
+enum class BICYCLE_STATUS {INIT, PAIRING, UNLOCKED, LOCKED, STOLEN};
 
+enum class SIM_COMMAND{UNKNOWN, PAIRING, RESET_ALL, STATUS};
 
 struct GPSLocation {
 
