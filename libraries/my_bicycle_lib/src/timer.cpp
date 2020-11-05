@@ -1,8 +1,14 @@
+#include "timer.h"
 
-// set time period to every second
+#include "component_debug.h"
+
+#include "MegaAvr20Mhz.h"
+#include "EveryTimerB.h"
 
 #define TIME_PERIOD_MILLIS 1000UL
 #define TIMER_PERIOD_MICROSEOND (TIME_PERIOD_MILLIS * 1000)
+
+#define Timer1 TimerB2
 
 #define TIMER_STATUS_FREE     0
 #define TIMER_STATUS_ARMED    1
@@ -11,11 +17,29 @@
 
 #define MAX_TIMERS  8
 
+
+
+
+volatile typedef struct _timer {
+  // the status of the timer (FREE, ARMED, RESERVED, EXPIRED)
+  byte status;
+
+  timeCycle_t roundCount;
+
+  // the time in
+  timeCycle_t expires;
+  // the callback function
+  timer_f callback;
+} MyTimer;
+
+
+
 static MyTimer timers[MAX_TIMERS]               = {};
 
 volatile uint8_t number_of_expired_timers = 0;
 
 void tick();
+
 
 
 // initializes the timer instance

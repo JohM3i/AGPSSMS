@@ -5,9 +5,9 @@
 
 SoftwareSerial id_12_serial(ID_12_LA_RX_PIN, ID_12_LA_FREE_PIN);
 
-void isr_card_in_range(){
-  // prepare listening to id_12_serial
-}
+
+void isr_card_in_range();
+
 
 
 void init_id_12_la(){
@@ -18,4 +18,9 @@ void init_id_12_la(){
 
 void loop_id_12_la(){
   
+}
+
+
+void isr_card_in_range(){
+  // prepare listening to id_12_serial
 }
