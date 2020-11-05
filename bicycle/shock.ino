@@ -62,6 +62,6 @@ void loop_shock(Bicycle &bicycle){
     shock_sensor_timer_id = timer_arm(TIME_ENABLE_SHOCK_SENSOR_AGAIN, timer_enable_shock_sensor);
 
     // update GPS location if possible
-    bicycle.set_gps_request(GPSRequest::GPS_REQ_SHOCK);
+    bicycle.set_gps_callback(gps_callback_check_stolen);
   }
 }
