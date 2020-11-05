@@ -1,8 +1,12 @@
 #define GPS_SERIAL_RX_PIN 3
 #define GPS_SERIAL_TX_PIN 2
 
+SoftwareSerial gps_serial(GPS_SERIAL_RX_PIN, GPS_SERIAL_TX_PIN);
 
-GPSHandler gps_handler(GPS_SERIAL_RX_PIN, GPS_SERIAL_TX_PIN);
+GPSHandler gps_handler(gps_serial);
+
+// method forward declarations
+void gps_callback_check_stolen(GPSState, GPSLocation *);
 
 
 void init_gps() {
@@ -15,6 +19,24 @@ void gpsReadTimeOut() {
   gps_handler.read_timed_out(); 
 }
 
+void loop_gps(Bicycle &bicycle){
+
+
+  GPSState gpsState = gps_handler.loop();
+
+  if(bicycle.is_queued_gps_callback() && gpsState == GPSState::GPS_IDLE){
+    // determine, which location we should track
+    GPSLocation *location_to_determine = bicycle.current_location();
+
+    if(bicycle.current_status() == BICYCLE_STATUS::LOCKED && bicycle.locked_location()->isValid()){
+      location_to_determine = bicycle.locked_location();
+    }
+
+    gps_handler.start_tracking(location_to_determine, bicycle.pop_gps_callback());
+    
+  }
+
+}
 
 bool is_bicylce_stolen() {
 
@@ -33,35 +55,8 @@ bool is_bicylce_stolen() {
   return distance > GPS_DISTANCE_TO_STOLEN_IN_METERS;
 }
 
-
-void loop_gps(Bicycle &bicycle){
-  
-  // check if we have to determine gps location
-  if(bicycle.gps_request() != GPSRequest::GPS_REQ_IDLE){
-    // request GPS location
-    // if state is locked then acquire location for fixed xor current gps location
-    if(!bicycle.locked_location()->isValid() && bicycle.current_status() == BICYCLE_STATUS::LOCKED){
-      D_GPS_PRINTLN("Determine GPS location for locked location.");
-      gps_handler.start_tracking(bicycle.locked_location(), bicycle.gps_request());
-    } else {
-      D_GPS_PRINTLN("Determine GPS location for current location.");
-      gps_handler.start_tracking(bicycle.current_location(), bicycle.gps_request());
-    }
-    // requset received. set value to idle again
-    bicycle.set_gps_request(GPSRequest::GPS_REQ_IDLE);
-  }
-
-  GPSState gpsState = gps_handler.loop();
-
-  
-  if(gpsState == GPSState::GPS_SUCCESS || gpsState == GPSState::GPS_TIMEOUT){
-    bicycle.set_gps_receiver(gps_handler.pop_receiver());
-  }
-
-  if(bicycle.new_gps_receive_available(GPSReceive::GPS_REC_SHOCK)){
+void gps_callback_check_stolen(GPSState gpsState, GPSLocation * /* not needed */){
     if(gpsState == GPSState::GPS_SUCCESS && bicycle.current_status() == BICYCLE_STATUS::LOCKED && is_bicylce_stolen()){
       bicycle.setStatus(BICYCLE_STATUS::STOLEN);
     }
-  }
-
 }
