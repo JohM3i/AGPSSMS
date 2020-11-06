@@ -35,7 +35,7 @@ typedef unsigned long timeCycle_t;
 
 
 void init_timer();
-timer_t timer_arm(timeCycle_t aTime, timer_f);
+timer_t timer_arm(timeCycle_t aTime, timer_f aFnc, uint8_t aFromISR = 0);
 void timer_disarm(timer_t* aTimer);
 void timer_notify();
 

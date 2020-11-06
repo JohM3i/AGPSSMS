@@ -17,7 +17,7 @@ enum class SERIAL_LISTENER {RFID, GPS
 // priorities:
 // always listen to SIM if possible
 
-volatile class SoftwareSerialToken {
+class SoftwareSerialToken {
 public:
   SoftwareSerialToken();
 
@@ -25,7 +25,7 @@ public:
   
   void release_token(SERIAL_LISTENER token);
   
-  uint8_t * get_rfid_buffer() const;
+  const uint8_t * get_rfid_buffer() const;
 
   bool is_rfid_info_available();
   

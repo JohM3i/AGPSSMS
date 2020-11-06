@@ -52,10 +52,12 @@ void init_timer(){
 
 
 static void timer_free(MyTimer* aTimer) {
-  if(aTimer->status = TIMER_STATUS_EXPIRED){
+  cli();
+  if(aTimer->status == TIMER_STATUS_EXPIRED){
     number_of_expired_timers--;
   }
   aTimer->status = TIMER_STATUS_FREE;
+  sei();
 }
 
 void timer_notify(){
@@ -93,13 +95,16 @@ void timer_notify(){
 // Parameters:
 // the number of milliseconds, when the timer should expire
 // the objective function which would be called, when the timer gets expired
-timer_t timer_arm(timeCycle_t aTime, timer_f aFnc){
+timer_t timer_arm(timeCycle_t aTime, timer_f aFnc, uint8_t aFromISR){
   timer_t id = TIMER_INVALID;
 
   // steps
   // - Find a free timer
   // - Convert the entered time period into the number of needed ticks
   // - 
+
+  if(aFromISR == 0)
+    cli();
 
   // find a free timer
   for(uint8_t i = 0; i< MAX_TIMERS; i++) {
@@ -113,9 +118,19 @@ timer_t timer_arm(timeCycle_t aTime, timer_f aFnc){
     }
   }
 
+  if(aFromISR == 0)
+    sei();
+
   if(id != TIMER_INVALID) {
+  
+    
     // initialize timer instance
     MyTimer* t = &timers[id];
+    
+    //synchronized calculation... no interrupts allowed
+    if(aFromISR == 0)
+      cli();
+  
     t->status = TIMER_STATUS_ARMED;
     // enter the normal time period
     t->expires = aTime;
@@ -129,6 +144,9 @@ timer_t timer_arm(timeCycle_t aTime, timer_f aFnc){
   } else {
     D_TIMER_PRINTLN(" ERROR: No free timer could be found.");
   }
+  
+  if(aFromISR == 0)
+    sei();
 
   return id;
 }

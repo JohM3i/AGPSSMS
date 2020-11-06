@@ -68,11 +68,11 @@
     }
 
     void GPSHandler::wakeup() {
-      softserial_token.set_listener(SERIAL_LISTENER::GPS);
+      softserial_token.acquire_token(SERIAL_LISTENER::GPS);
     }
 
     void GPSHandler::tearDown() {      
-      softserial_token.set_listener(SERIAL_LISTENER::NO_ONE);
+      softserial_token.release_token(SERIAL_LISTENER::GPS);
 
       // fire the fps callback
       if(callback){

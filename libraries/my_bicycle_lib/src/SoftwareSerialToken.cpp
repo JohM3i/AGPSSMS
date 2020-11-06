@@ -7,12 +7,6 @@
 #define RFID_LF 0x0a
 
 
-#define SET_OWNER(__newonwer) \
-	previous_owner = current_owner;\
-	current_owner = __newowner
-
-
-
   uint8_t ascii_to_hex(uint8_t val){
      if( val >= '0' && val <= '9')
        val = val - '0';
@@ -24,7 +18,7 @@
 
   SoftwareSerialToken::SoftwareSerialToken(){
     current_owner = SERIAL_LISTENER::SIM;
-    previous_owner = SERIAL_LISTENER::NO_ONE;
+    previous_owner = SERIAL_LISTENER::SIM;
   }
 
   
@@ -37,11 +31,11 @@
       
       if(current_owner == SERIAL_LISTENER::RFID){
         // check if the rfid serial contains information
-        try_parse_rfid();
+        try_read_rfid();
       }
-      
-      cli();
-      SET_OWNER(token);
+
+      previous_owner = current_owner;
+      current_owner = token;
       switch (token) {
         case SERIAL_LISTENER::RFID:
           rfid_serial->listen();
@@ -55,7 +49,7 @@
         default:
           break;
       }
-      sei();
+
   }
   
   void SoftwareSerialToken::release_token(SERIAL_LISTENER token){
@@ -79,7 +73,7 @@
   
   bool SoftwareSerialToken::try_read_rfid(){
     if(rfid_serial->isListening()){
-      return false:
+      return false;
     }
   
     // check if the complete rfid tag is already stored in the SoftwareSerial's buffer
@@ -90,8 +84,8 @@
     	  uint8_t major;
     	  uint8_t minor;
           for(uint8_t i = 0; i < 6; i++){
-            major = ascii_to_hex(rfid_serial.read()) << 4;
-            minor = ascii_to_hex(rfid_serial.read());
+            major = ascii_to_hex(rfid_serial->read()) << 4;
+            minor = ascii_to_hex(rfid_serial->read());
 
             rfid_buffer[i] = major | minor;
           }
@@ -106,7 +100,7 @@
     return has_rfid_info;
   }
   
-  uint8_t * SoftwareSerialToken::get_rfid_buffer() const{
+  const uint8_t * SoftwareSerialToken::get_rfid_buffer() const {
     return rfid_buffer;
   }
   
@@ -116,7 +110,7 @@
       rfid_buffer[i] = 0;
     }
     // break checksum
-    rfid_budder[10] = 0xff;
+    rfid_buffer[10] = 0xff;
     rfid_buffer[11] = 0xff;
     has_rfid_info = false;
   }
