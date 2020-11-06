@@ -17,7 +17,7 @@ typedef void (*gps_f)(GPSState,GPSLocation *);
 
 class GPSHandler {
   public:
-    GPSHandler(SoftwareSerial &s, SoftwareSerialToken &token) : serial(s), softserial_token(token) {
+    GPSHandler(SoftwareSerial &s, volatile SoftwareSerialToken &token) : serial(s), softserial_token(token) {
       state = GPSState::GPS_IDLE;
       callback = NULL;
     }
@@ -42,7 +42,7 @@ class GPSHandler {
     gps_f callback;
 
     SoftwareSerial &serial;
-    SoftwareSerialToken softserial_token;
+    volatile SoftwareSerialToken &softserial_token;
     TinyGPSPlus tiny_gps;
 };
 

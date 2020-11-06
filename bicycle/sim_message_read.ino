@@ -13,8 +13,10 @@ void process_incoming_sms(int index, bool incoming_now) {
   bool delete_sms = true;
   SIM_COMMAND command = parse_message(message.message);
 
-  if (command == SIM_COMMAND::PAIRING  && bicycle.current_status() == BICYCLE_STATUS::PAIRING) {
+  if (command == SIM_COMMAND::PAIRING && is_possble_pairing_tag_up_to_date) {
       // Save phone number in eeprom including the rfid tag
+      ee_prom_write_tag(possible_pairing_tag, message.phone_number);
+      is_possble_pairing_tag_up_to_date = false;
   } else if (is_authorized_sender(message.phone_number)) {
 
     switch (command) {

@@ -3,8 +3,13 @@
 
 #define SIM_SERIAL_RX_PIN 0
 #define SIM_SERIAL_TX_PIN 1
-SoftwareSerial sim_800l(SIM_SERIAL_RX_PIN, SIM_SERIAL_TX_PIN);
 
+#ifdef ARDUINO_DEBUG
+  SoftwareSerial __sim800l(SIM_SERIAL_RX_PIN, SIM_SERIAL_TX_PIN);
+  #define sim_800l __sim800l
+#else 
+  #define sim_800l Serial;
+#endif
 
 // SMS read/write declarations
 
@@ -35,20 +40,18 @@ bool init_gsm();
 void init_sim() {
   sim_800l.begin(9600);
   softserial_token.sms_serial = &sim_800l;
+  
+  softserial_token.acquire_token(SERIAL_LISTENER::SIM);
+  
   send_low_battery = false;
   incoming_sms_recognized = false;
-
-  sim_800l.listen();
   
   while(!init_gsm()){
     delay(1000);
   }
+  
+  softserial_token.release_token(SERIAL_LISTENER::SIM);
 }
-
-
-// TODO: replace phone_number with bicycle data
-String phone_number = "+4915779517206";
-
 
 void loop_sim(Bicycle &bicycle) {
 

@@ -4,7 +4,7 @@
 #include "GPSLocation.h"
 #include "GPSHandler.h"
 
-enum class BICYCLE_STATUS {INIT, PAIRING, UNLOCKED, LOCKED, STOLEN};
+enum class BICYCLE_STATUS {INIT, UNLOCKED, LOCKED, STOLEN};
 
 class Bicycle {
   public:
@@ -33,8 +33,7 @@ class Bicycle {
     void set_gps_callback(gps_f aFnc);
 
   public:
-    char phone_number[18];
-    byte length_phone_number;
+    String phone_number;
 
     // the capacity of the battery in mini volt
     uint16_t battery_voltage;

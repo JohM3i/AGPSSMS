@@ -3,8 +3,13 @@
 
 #include <Arduino.h> 
 #include "SoftwareSerial.h"
+#include "component_debug.h"
 
-enum class SERIAL_LISTENER {NO_ONE, RFID, GPS, SIM};
+enum class SERIAL_LISTENER {RFID, GPS
+#ifdef ARDUINO_DEBUG
+,SIM
+#endif
+};
 
 
 
@@ -12,52 +17,36 @@ enum class SERIAL_LISTENER {NO_ONE, RFID, GPS, SIM};
 // priorities:
 // always listen to SIM if possible
 
-class SoftwareSerialToken {
+volatile class SoftwareSerialToken {
 public:
-  SoftwareSerialToken(){
-    current_owner = SERIAL_LISTENER::SIM;
-    previous_owner = SERIAL_LISTENER::NO_ONE;
-  }
+  SoftwareSerialToken();
 
-  void set_listener(SERIAL_LISTENER token) {
-      if(current_owner == token){
-        return;
-      }
-      
-      switch (token) {
-      case SERIAL_LISTENER::RFID:
-        rfid_serial->listen();
-        set_owner(token);
-      case SERIAL_LISTENER::GPS:
-        gps_serial->listen();
-        set_owner(token);
-      case SERIAL_LISTENER::SIM:
-        sms_serial->listen();
-        set_owner(token);
-      case SERIAL_LISTENER::NO_ONE:
-        if(previous_owner == SERIAL_LISTENER::GPS){
-          gps_serial->listen();
-          set_owner(SERIAL_LISTENER::GPS);
-        } else {
-          sms_serial->listen();
-          set_owner(SERIAL_LISTENER::SIM);
-        }
-      default:
-        break;
-    }
-  }
+  void acquire_token(SERIAL_LISTENER token);
+  
+  void release_token(SERIAL_LISTENER token);
+  
+  uint8_t * get_rfid_buffer() const;
 
-  SoftwareSerial *sms_serial;
+  bool is_rfid_info_available();
+  
+  void reset_rfid_Buffer();
+  
+  bool try_read_rfid();
+  
+#ifdef ARDUINO_DEBUG
+  SoftwareSerial *sms_serial;  
+#endif
   SoftwareSerial *gps_serial;
   SoftwareSerial *rfid_serial;
+  
 private:
-  void set_owner(SERIAL_LISTENER owner){
-    previous_owner = current_owner;
-    current_owner = owner;
-  }
+  
 
   SERIAL_LISTENER current_owner;
   SERIAL_LISTENER previous_owner;
+  
+  bool has_rfid_info = false;
+  uint8_t rfid_buffer[6];
 };
 
 #endif

@@ -1,6 +1,9 @@
 
 void gps_callback_sms_send_status(GPSState state, GPSLocation *location) {
   D_SIM_PRINTLN("Send status sms");
+  if(bicycle.phone_number.length() <= 0){
+    return;
+  }
   read_battery_capacity();
 
   // get a valid GPS location
@@ -30,7 +33,7 @@ void gps_callback_sms_send_status(GPSState state, GPSLocation *location) {
   String message = "Dein Fahrrad Status:\nDie aktuelle position:\n" + gpsCoordinates +
                    "\nAkkustand: " + volt + "mV" + " (" + percent + "%)";
 
-  bool retVal = sms.send_sms(phone_number, message);
+  bool retVal = sms.send_sms(bicycle.phone_number, message);
 
   if (bicycle.battery_percent < SMS_SEND_LOW_BATTERY_AT_PERCENT) {
     send_low_battery = retVal;
@@ -39,18 +42,20 @@ void gps_callback_sms_send_status(GPSState state, GPSLocation *location) {
 
 
 bool sms_send_low_battery() {
-
+  if(bicycle.phone_number.length() <= 0){
+    return false;
+  }
   String volt(bicycle.battery_voltage);
   String percent(bicycle.battery_percent);
 
   String message = "My Battery is low and it's getting dark\nAkkustand: " + volt + "mV" + " (" + percent + "%)";
 
-  return sms.send_sms(phone_number,message);
+  return sms.send_sms(bicycle.phone_number,message);
 }
 
 void sms_send_stolen_bicycle(GPSState, GPSLocation* location) {
   // check if the bicycle is still in stolen mode
-  if (bicycle.current_status() != BICYCLE_STATUS::STOLEN) {
+  if (bicycle.current_status() != BICYCLE_STATUS::STOLEN || bicycle.phone_number.length() <= 0) {
       return;
   }
 
@@ -67,7 +72,7 @@ void sms_send_stolen_bicycle(GPSState, GPSLocation* location) {
   String message = "Dein Fahrrad wurde geklaut.\nDie aktuelle position:\nhttps://www.google.com/maps/?q=" + lat + "," + lng +
                    "\nAkkustand: " + volt + "mV" + " (" + percent + "%)";
 
-  bool retVal = sms.send_sms(phone_number, message);
+  bool retVal = sms.send_sms(bicycle.phone_number, message);
   if (bicycle.battery_percent < SMS_SEND_LOW_BATTERY_AT_PERCENT) {
     send_low_battery = retVal;
   }
