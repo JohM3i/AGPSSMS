@@ -23,6 +23,8 @@ Bicycle bicycle;
 
 //************ FORWARD DECLARATIONS - Methods ************ //
 // init and loop methods of different files
+BICYCLE_STATUS init_ee_prom();
+
 #define FILE_FORWARD(file) void init_file(); void loop_file(Bicycle &bicycle);
 
 FILE_FORWARD(buzzer);
@@ -37,15 +39,15 @@ FILE_FORWARD(battery);
 void setup() {
   // put your setup code here, to run once
   D_INIT;
-  while (!Serial);
 
   D_PRINTLN("Initializing ...");
+
+  bicycle.setStatus(init_ee_prom());
 
   init_battery();
   init_buzzer();
   init_gps();
   init_id_12_la();
-  //init_rfid();
   init_shock();
   init_sim();
   init_timer();
@@ -59,9 +61,7 @@ void loop() {
 
   loop_battery(bicycle);
 
-  loop_id_12_la;
-
-  //loop_rfid(bicycle);
+  loop_id_12_la(bicycle);
 
   loop_shock(bicycle);
 

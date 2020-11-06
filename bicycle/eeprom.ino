@@ -17,13 +17,16 @@
 /** EEPROM Layout **/
 /** |STAMP1| num_entries | <pair of tag and phone number> | <pair of tag and phone number> | ... free **/
 
-BICYCLE_STATUS init_ee_prom();
 
 bool ee_prom_find_phone_number_to_tag(const uint8_t *tag, String &out_phoneNumber);
+
+bool ee_prom_contains_phone_number(const String &phone_number);
 
 void ee_prom_clear();
 
 void ee_prom_write_tag(const uint8_t *tag, const String &phone_number);
+
+bool ee_prom_give_me_a_phone_number(String &phone_number);
 
 uint8_t ee_prom_num_entries;
 
@@ -56,7 +59,7 @@ BICYCLE_STATUS init_ee_prom(){
 
 // static helper functions
 
-static bool ee_prom_index_contains_Tag(const uint8_t *tag, uint8_t index){
+static bool ee_prom_index_contains_tag(const uint8_t *tag, uint8_t index){
   for(uint8_t i = 0; i <  EE_PROM_RFID_TAG_SIZE; i++){
     
     if(tag[i] != EEPROM.read(i + index*(EE_PROM_RFID_TAG_SIZE + EE_PROM_PHONE_NUMBER_SIZE) + EE_PROM_DATA_OFFSET)) {
@@ -79,6 +82,24 @@ static void ee_prom_read_phone_number(String &phone_number, uint8_t index){
   }
 }
 
+static bool ee_prom_index_contains_phone_number(const String &phone_number, uint8_t index){
+  uint8_t i;
+  for(i = 0; i <  min(phone_number.length(), EE_PROM_PHONE_NUMBER_SIZE); i++){
+    if(phone_number.charAt(i) != EEPROM.read(i + index*(EE_PROM_RFID_TAG_SIZE + EE_PROM_PHONE_NUMBER_SIZE) + EE_PROM_RFID_TAG_SIZE + EE_PROM_DATA_OFFSET)) {
+      return false;
+    }
+  }
+
+  // now check fillings
+  for(; i<  EE_PROM_PHONE_NUMBER_SIZE; i++) {
+    if(EE_PROM_PHONE_FILLER != EEPROM.read(i + index*(EE_PROM_RFID_TAG_SIZE + EE_PROM_PHONE_NUMBER_SIZE) + EE_PROM_RFID_TAG_SIZE + EE_PROM_DATA_OFFSET)){
+      return false;
+    }
+  }
+
+  return true;
+}
+
 // method imeplementations
 
 bool ee_prom_find_phone_number_to_tag(const uint8_t *tag, String &out_phoneNumber){
@@ -86,7 +107,7 @@ bool ee_prom_find_phone_number_to_tag(const uint8_t *tag, String &out_phoneNumbe
   bool retVal = false;
   
   for(;searchIndex < ee_prom_num_entries; searchIndex++){
-    if(ee_prom_index_contains_Tag(tag, searchIndex)) {
+    if(ee_prom_index_contains_tag(tag, searchIndex)) {
       retVal = true;
       break;    
     }
@@ -99,6 +120,16 @@ bool ee_prom_find_phone_number_to_tag(const uint8_t *tag, String &out_phoneNumbe
 }
 
 
+
+bool ee_prom_contains_phone_number(const String &phone_number){
+  for(uint8_t i = 0; i < ee_prom_num_entries; ++i){
+    if(ee_prom_index_contains_phone_number(phone_number, i)){
+      return true;
+    }
+    
+  }
+  return false;
+}
 
 void ee_prom_write_tag(const uint8_t *tag, const String &phone_number){
   unsigned int tag_write_index = (ee_prom_num_entries) * (EE_PROM_RFID_TAG_SIZE + EE_PROM_PHONE_NUMBER_SIZE) + EE_PROM_DATA_OFFSET;
@@ -134,4 +165,12 @@ void ee_prom_clear(){
   EEPROM.write(0, EE_PROM_STAMP1_P1);
   EEPROM.write(1, EE_PROM_STAMP1_P2);
   EEPROM.write(EE_PROM_NUM_TAG_ENTRIES,0);
+}
+
+bool ee_prom_give_me_a_phone_number(String &out_phone_number){
+  if(ee_prom_num_entries <= 0){
+    return false;
+  }
+  ee_prom_read_phone_number(out_phone_number, 0);
+  return true;
 }
