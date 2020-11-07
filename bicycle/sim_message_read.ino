@@ -14,15 +14,14 @@ static bool find_phone_number(String &out_number){
   return success;
 }
 
-void process_incoming_sms(int index, bool incoming_now) {
+
+String tmp_sms_sender_phone_number;
+
+void process_incoming_sms(int index) {
   SMSMessage message;
-  if (!sms.read_sms(message, index) && incoming_now) {
-    // try it later on another point
+  if(!sms.read_sms(message, index)) {
+    sms.delete_sms(index);
     return;
-  } else if (!incoming_now){
-     // missed second chance - delete
-     sms.delete_sms(index);
-     return;
   }
 
   SIM_COMMAND command = parse_message(message.message);
@@ -43,13 +42,15 @@ void process_incoming_sms(int index, bool incoming_now) {
         break;
       case SIM_COMMAND::STATUS:
         bicycle.set_gps_callback(gps_callback_sms_send_status);
+        tmp_sms_sender_phone_number = "";
+        tmp_sms_sender_phone_number += message.phone_number;
         break;
       default:
         break;
     }
     
     // here we assume delete worked. Else we try it another time.
-    sms.delete_sms(index);
+    
   } else {
     // unauthorized message writer :/    
     // find a receiver and forward to him
@@ -62,13 +63,13 @@ void process_incoming_sms(int index, bool incoming_now) {
     }
 
     // now we can write message
-    String message_to_send = "Forward sms from " + message.phone_number; + "\n" + message.message;
+    String message_to_send = "Forward sms from " + message.phone_number + "\n" + message.message;
     
-    if(sms.send_sms(phone_number, message_to_send) || !incoming_now){
-      sms.delete_sms(index);
-    }
-  } 
+    sms.send_sms(phone_number, message_to_send);
+  }
+  sms.delete_sms(index);
 }
+
 
 
 SIM_COMMAND parse_message(const String &message) {

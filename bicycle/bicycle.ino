@@ -7,6 +7,7 @@
 #include "timer.h"
 #include "ee_prom.h"
 #include "rfid.h"
+#include "shock_sensor.h"
 
 //********************* VARIABLES ********************** //
 #define GPS_DISTANCE_TO_STOLEN_IN_METERS 20

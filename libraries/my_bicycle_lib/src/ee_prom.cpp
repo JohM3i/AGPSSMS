@@ -25,8 +25,12 @@
 uint8_t ee_prom_num_entries;
 
 
+String last_user_phone_number;
+
+
 bool init_ee_prom(){
   ee_prom_num_entries = 0;
+  last_user_phone_number = "";
 
   bool is_initialized = true;
   
@@ -115,6 +119,8 @@ bool ee_prom_find_phone_number_to_tag(const uint8_t *tag, String &out_phoneNumbe
 
   if(retVal){
     ee_prom_read_phone_number(out_phoneNumber, searchIndex);
+    last_user_phone_number = "";
+    last_user_phone_number += out_phoneNumber;
   }
   return retVal;
 }
@@ -204,9 +210,11 @@ void ee_prom_clear(){
 }
 
 bool ee_prom_give_me_a_phone_number(String &out_phone_number){
-  if(ee_prom_num_entries <= 0){
+  if(last_user_phone_number.length() <=0){
     return false;
   }
-  ee_prom_read_phone_number(out_phone_number, 0);
+  out_phone_number = "";
+  out_phone_number += last_user_phone_number;
+
   return true;
 }

@@ -14,7 +14,7 @@
 // SMS read/write declarations
 
 // logic which processes an SMS on the SIM card
-void process_incoming_sms(int index, bool incoming_now=true);
+void process_incoming_sms(int index);
 // sends the stolen bicycle sms
 void sms_send_stolen_bicycle(GPSState, GPSLocation*);
 // sends the sms for low battery
@@ -31,7 +31,6 @@ timer_t timer_periodic_send_stolen_sms;
 GSM_Sim_SMS sms(sim_800l);
 
 bool send_low_battery;
-bool incoming_sms_recognized;
 
 bool init_gsm();
 
@@ -47,7 +46,6 @@ void init_sim() {
   sim_800l.begin(9600);
     
   send_low_battery = false;
-  incoming_sms_recognized = false;
 
   init_gsm();
 }

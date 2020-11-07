@@ -1,67 +1,53 @@
-#define SHOCK_SENSOR_INTERRUPT_PIN 5
-#define SHOCK_SENSOR_PWR_PIN 4
+void gps_callback_check_stolen(GPSState gpsState, GPSLocation * /* not needed */);
 
-void set_shock_sensor_enabled(bool enabled) {
-  digitalWrite(SHOCK_SENSOR_PWR_PIN, enabled ? HIGH : LOW);
-  D_SHOCK_PRINT("Set Shock sensor interrupt enabled: ");
-  D_SHOCK_PRINTLN(enabled);
+#ifdef ARDUINO_DEBUG
+  extern SoftwareSerial __sim800l;
+#endif
 
-  if(enabled) {
-    // add the interrupt routine
-    attachInterrupt(digitalPinToInterrupt(SHOCK_SENSOR_INTERRUPT_PIN), shock_sensor_isr, RISING);
-  } else {
-    // detach the interrupt for the shock sensor
-    detachInterrupt(digitalPinToInterrupt(SHOCK_SENSOR_INTERRUPT_PIN));
-  }
-}
-
-timer_t shock_sensor_timer_id;
-
-void timer_enable_shock_sensor(){
-  timer_disarm(&shock_sensor_timer_id);
-  set_shock_sensor_enabled(true);
-}
-
-bool volatile shock_registered;
-
-void shock_sensor_isr(){
-  shock_registered = true;
-}
 
 void init_shock() {
-  // use a digital pin as power output
-  shock_registered = false;
-  pinMode(SHOCK_SENSOR_PWR_PIN, OUTPUT);
-  digitalWrite(SHOCK_SENSOR_PWR_PIN, LOW);
+  shock_sensor_init();
 }
 
-void loop_shock(Bicycle &bicycle){
-
-  // when bicycle status is set to locked, then activate the shock sensor
-  if(bicycle.status_changed()){
-    shock_registered = false;
-    
-    switch (bicycle.current_status()){
-      case BICYCLE_STATUS::LOCKED:
-          // turn shock sensor on
-          shock_sensor_timer_id = timer_arm(TIME_ENABLE_SHOCK_SENSOR_AGAIN, timer_enable_shock_sensor);
-      break;
-      default:
-          set_shock_sensor_enabled(false);
-      break;
-    }
-  }
-  
-  if(shock_registered) {
+void loop_shock(Bicycle &bicycle){  
+  if(bicycle.current_status() == BICYCLE_STATUS::LOCKED && is_shock_registered()) {
     D_SHOCK_PRINTLN("A shock has been registered");
     
     // disable shock sensor
     set_shock_sensor_enabled(false);
-    shock_registered = false;
-    // after some time, enable shock sensor again
-    shock_sensor_timer_id = timer_arm(TIME_ENABLE_SHOCK_SENSOR_AGAIN, timer_enable_shock_sensor);
 
     // update GPS location if possible
     bicycle.set_gps_callback(gps_callback_check_stolen);
   }
+}
+
+bool is_bicylce_stolen() {
+
+    if(!bicycle.locked_location()->isValid() || !bicycle.current_location()->isValid()){
+      // one of the GPS locations is not valid -> cannot compute a distance
+      D_GPS_PRINTLN("One of the GPS coordinates is not valid. Return bike is not stolen.");
+      return false;
+    }
+  
+  double distance = TinyGPSPlus::distanceBetween(
+          bicycle.locked_location()->lat(),
+          bicycle.locked_location()->lng(),
+          bicycle.current_location()->lat(), 
+          bicycle.current_location()->lng());
+  D_GPS_PRINTLN(String(distance, 8));
+  return distance > GPS_DISTANCE_TO_STOLEN_IN_METERS;
+}
+
+void gps_callback_check_stolen(GPSState gpsState, GPSLocation * /* not needed */){
+#ifdef ARDUINO_DEBUG
+    D_SIM_PRINTLN("Listen to sim serial");
+    __sim800l.listen();
+#endif
+  
+    if(gpsState == GPSState::GPS_SUCCESS && bicycle.current_status() == BICYCLE_STATUS::LOCKED && is_bicylce_stolen()){
+      bicycle.setStatus(BICYCLE_STATUS::STOLEN);
+    } else {
+      // remain in current state -> LOCKED
+      set_shock_sensor_enabled(true);
+    }
 }

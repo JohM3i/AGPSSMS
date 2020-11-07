@@ -1,4 +1,5 @@
 #include "GPSHandler.h"
+#include "component_debug.h"
 
     void GPSHandler::init() {
       serial.begin(9600);
@@ -43,15 +44,19 @@
             state = GPSState::GPS_SUCCESS;
           }
         case GPSState::GPS_SUCCESS:
+          timer_disarm(&timer_id);
           // write data
           location_to_determine->update(tiny_gps.location);
-
-          timer_disarm(&timer_id);
+          D_GPS_PRINT("Acquire GPS information success: ");
+          D_GPS_PRINT(String(location_to_determine->lat(),6));
+          D_GPS_PRINT(", ");
+          D_GPS_PRINT(String(location_to_determine->lng(), 6));
           tearDown();
           return GPSState::GPS_SUCCESS;
           break;
         case GPSState::GPS_TIMEOUT:
           // timeout called, tear down
+          D_GPS_PRINTLN("Acquire GPS information timed out");
           tearDown();
           return GPSState::GPS_TIMEOUT;
           break;
@@ -66,11 +71,20 @@
 
     void GPSHandler::wakeup() {
       // at this point, we don't have to do something
+      
+      #ifdef ARDUINO_DEBUG
+      D_GPS_PRINTLN("GPS call listen to software serial");
+      serial.listen();
+      #endif
+      
+      D_GPS_PRINTLN("Woke up GPS tracking");
     }
 
-    void GPSHandler::tearDown() {      
+    void GPSHandler::tearDown() {
+      D_GPS_PRINTLN("Tear down GPS tracking");
       // fire the fps callback
       if(callback){
+        D_GPS_PRINTLN("Fire GPS callback");
         callback(state, location_to_determine);  
       }
       callback = NULL;

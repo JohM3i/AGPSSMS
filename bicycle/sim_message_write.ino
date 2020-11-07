@@ -4,7 +4,8 @@ void gps_callback_sms_send_status(GPSState state, GPSLocation *location) {
   sim_800l.listen();
 #endif
   D_SIM_PRINTLN("Send status sms");
-  if(bicycle.phone_number.length() <= 0){
+  if(tmp_sms_sender_phone_number.length() <= 0){
+    D_SIM_PRINTLN("Cannot write status sms. Tmp SMS Sender length is zero");
     return;
   }
   read_battery_capacity();
@@ -36,11 +37,13 @@ void gps_callback_sms_send_status(GPSState state, GPSLocation *location) {
   String message = "Dein Fahrrad Status:\nDie aktuelle position:\n" + gpsCoordinates +
                    "\nAkkustand: " + volt + "mV" + " (" + percent + "%)";
 
-  bool retVal = sms.send_sms(bicycle.phone_number, message);
+  bool retVal = sms.send_sms(tmp_sms_sender_phone_number, message);
 
   if (bicycle.battery_percent < SMS_SEND_LOW_BATTERY_AT_PERCENT) {
     send_low_battery = retVal;
   }
+  // reset the temporal sender phone number
+  tmp_sms_sender_phone_number = "";
 }
 
 
@@ -58,6 +61,7 @@ bool sms_send_low_battery() {
 
 void sms_send_stolen_bicycle(GPSState, GPSLocation* location) {
 #ifdef ARDUINO_DEBUG
+  D_SIM_PRINTLN("Listen to sim serial");
   sim_800l.listen();
 #endif
   
