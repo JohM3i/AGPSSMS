@@ -4,7 +4,6 @@
 
 #include <Arduino.h>
 #include "SoftwareSerial.h"
-#include "SoftwareSerialToken.h"
 #include "TinyGPS++.h"
 #include "GPSLocation.h"
 #include "timer.h"
@@ -17,7 +16,7 @@ typedef void (*gps_f)(GPSState,GPSLocation *);
 
 class GPSHandler {
   public:
-    GPSHandler(SoftwareSerial &s, SoftwareSerialToken &token) : serial(s), softserial_token(token) {
+    GPSHandler(SoftwareSerial &s) : serial(s) {
       state = GPSState::GPS_IDLE;
       callback = NULL;
     }
@@ -28,6 +27,7 @@ class GPSHandler {
     void read_timed_out();
 
     GPSState loop();
+    
   private:
     void wakeup();
 
@@ -42,7 +42,6 @@ class GPSHandler {
     gps_f callback;
 
     SoftwareSerial &serial;
-    SoftwareSerialToken &softserial_token;
     TinyGPSPlus tiny_gps;
 };
 

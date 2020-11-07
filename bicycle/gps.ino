@@ -3,7 +3,7 @@
 
 SoftwareSerial gps_serial(GPS_SERIAL_RX_PIN, GPS_SERIAL_TX_PIN);
 
-GPSHandler gps_handler(gps_serial, softserial_token);
+GPSHandler gps_handler(gps_serial);
 
 // method forward declarations
 void gps_callback_check_stolen(GPSState, GPSLocation *);

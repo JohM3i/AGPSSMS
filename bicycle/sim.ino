@@ -38,19 +38,18 @@ bool init_gsm();
 // methods called by setup() and loop()
 
 void init_sim() {
+  #ifdef ARDUINO_DEBUG
+  D_SIM_PRINTLN("use sim softwareserial");
+  #else
+  D_SIM_PRINTLN("use sim hardware serial");
+  #endif
+  
   sim_800l.begin(9600);
-  softserial_token.sms_serial = &sim_800l;
-  
-  softserial_token.acquire_token(SERIAL_LISTENER::SIM);
-  
+    
   send_low_battery = false;
   incoming_sms_recognized = false;
-  
-  while(!init_gsm()){
-    delay(1000);
-  }
-  
-  softserial_token.release_token(SERIAL_LISTENER::SIM);
+
+  init_gsm();
 }
 
 void loop_sim(Bicycle &bicycle) {
@@ -63,7 +62,7 @@ void loop_sim(Bicycle &bicycle) {
       D_SIM_PRINTLN("Send stolen sms");
       // in this case we can assume that the current location of the bicycle is valid
       sms_send_stolen_bicycle(GPSState::GPS_SUCCESS, bicycle.current_location());
-      timer_periodic_send_stolen_sms = timer_arm(TIME_SMS_SEND_POSITION, trigger_acqurie_gps_and_send_stolen_sms);
+      timer_periodic_send_stolen_sms = timer_arm(TIME_CYCLE_SEND_STOLEN_SMS, trigger_acqurie_gps_and_send_stolen_sms);
     }
 
     if (bicycle.previous_status() == BICYCLE_STATUS::STOLEN) {
@@ -92,10 +91,8 @@ void loop_sim(Bicycle &bicycle) {
 }
 
 bool init_gsm(){
-  sim_800l.println("AT");
-  delay(1000);
   D_SIM_PRINT("sms initialization complete: ");
-  bool retVal = sms.initSMS();
+  bool retVal = sms.initSMS(5);
   D_SIM_PRINTLN(retVal);
   
   D_SIM_PRINT("Set echo on: ");

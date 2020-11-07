@@ -4,7 +4,9 @@
 #include "GPSLocation.h"
 #include "GPSHandler.h"
 
-enum class BICYCLE_STATUS {INIT, UNLOCKED, LOCKED, STOLEN};
+enum class BICYCLE_STATUS {INIT, UNLOCKED, LOCKED, STOLEN, RESET};
+
+String bicycle_status_to_string(BICYCLE_STATUS);
 
 class Bicycle {
   public:
@@ -20,7 +22,7 @@ class Bicycle {
 
     void set_status_changed(bool status);
 
-    void invalidat_gps_coordinates();
+    void invalidate_gps_coordinates();
 
     GPSLocation * locked_location();
 

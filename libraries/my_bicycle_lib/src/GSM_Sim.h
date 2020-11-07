@@ -22,9 +22,6 @@ class GSM_Sim {
     bool echoOff();
     // echo on
     bool echoOn();
-
-    // sends an AT command to the GSM SIM module
-    String sendATCommand(char* command, uint32_t max_wait_time);
     
     // Sets the functionality level of the gsm modul (CFUN).
     bool setPhoneFunctionalityMode(byte level);

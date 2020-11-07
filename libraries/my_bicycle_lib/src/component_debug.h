@@ -12,6 +12,10 @@
 
 #define ARDUINO_DEBUG_SIM
 
+#define ARDUINO_DEBUG_EEPROM
+
+#define ARDUINO_DEBUG_RFID
+
 
 #if defined(ARDUINO_DEBUG)
 #define D_INIT Serial.begin(9600)
@@ -84,5 +88,18 @@
   #define D_SIM_PRINTLN(text)
   #define D_SIM_WRITE(text)
 #endif
+
+
+#if defined(ARDUINO_DEBUG_EEPROM)
+ #define D_EEPROM_PRINT(text) D_PRINT(text)
+ #define D_EEPROM_PRINTLN(text) D_PRINTLN(text)
+ #define D_v_WRITE(text) D_WRITE(text)
+#else
+  #define D_EEPROM_PRINT(text)
+  #define D_EEPROM_PRINTLN(text)
+  #define D_EEPROM_WRITE(text)
+#endif
+
+
 
 #endif // __COMPONENT_DEBUG_H__

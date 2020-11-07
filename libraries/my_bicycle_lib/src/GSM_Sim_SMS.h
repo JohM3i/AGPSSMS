@@ -64,7 +64,7 @@ class GSM_Sim_SMS : public GSM_Sim {
 
 
     // SMS Fonksiyonları
-    bool initSMS();
+    bool initSMS(uint8_t numTries = 1);
     // sms i text yada pdu moda döndürür
     bool setTextMode(bool textModeON);
     // sms için kayıt kaynağı seçer

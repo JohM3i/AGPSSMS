@@ -6,6 +6,9 @@ static bool find_phone_number(String &out_number){
 
   if(bicycle.phone_number.length() > 0){
     out_number = bicycle.phone_number;
+  } else {
+    // TODO: ask eeprom
+    success = false;
   }
 
   return success;
@@ -17,7 +20,7 @@ void process_incoming_sms(int index, bool incoming_now) {
     // try it later on another point
     return;
   } else if (!incoming_now){
-    // missed second chance - delete
+     // missed second chance - delete
      sms.delete_sms(index);
      return;
   }
@@ -26,15 +29,17 @@ void process_incoming_sms(int index, bool incoming_now) {
 
   if (command == SIM_COMMAND::PAIRING && is_possble_pairing_tag_up_to_date) {
       // Save phone number in eeprom including the rfid tag
-      ee_prom_write_tag(possible_pairing_tag, message.phone_number);
+      D_SIM_PRINT("Do pairing of tag ");
+      D_SIM_PRINT(possible_pairing_tag);
+      D_SIM_PRINT(" with phone number ");
+      ee_prom_write_tag((uint8_t *)&possible_pairing_tag, message.phone_number);
       is_possble_pairing_tag_up_to_date = false;
   } else if (ee_prom_contains_phone_number(message.phone_number)) {
 
     switch (command) {
       case SIM_COMMAND::RESET_ALL:
         // delete eeprom and set mode to init
-        ee_prom_clear();
-        bicycle.setStatus(BICYCLE_STATUS::INIT);
+        bicycle.setStatus(BICYCLE_STATUS::RESET);
         break;
       case SIM_COMMAND::STATUS:
         bicycle.set_gps_callback(gps_callback_sms_send_status);

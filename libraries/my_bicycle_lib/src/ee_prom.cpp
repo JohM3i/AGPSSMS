@@ -1,4 +1,9 @@
-#define EE_PROM_RFID_TAG_SIZE 6
+#include "ee_prom.h"
+#include "component_debug.h"
+#include <EEPROM.h>
+#include "rfid.h"
+
+#define EE_PROM_RFID_TAG_SIZE sizeof(Rfid_Tag)
 #define EE_PROM_PHONE_NUMBER_SIZE 15
 
 #define EE_PROM_STAMP1_P1 0x2c
@@ -17,27 +22,18 @@
 /** EEPROM Layout **/
 /** |STAMP1| num_entries | <pair of tag and phone number> | <pair of tag and phone number> | ... free **/
 
-
-bool ee_prom_find_phone_number_to_tag(const uint8_t *tag, String &out_phoneNumber);
-
-bool ee_prom_contains_phone_number(const String &phone_number);
-
-void ee_prom_clear();
-
-void ee_prom_write_tag(const uint8_t *tag, const String &phone_number);
-
-bool ee_prom_give_me_a_phone_number(String &phone_number);
-
 uint8_t ee_prom_num_entries;
 
 
-BICYCLE_STATUS init_ee_prom(){
+bool init_ee_prom(){
   ee_prom_num_entries = 0;
 
   bool is_initialized = true;
   
   // check stamp 1
   is_initialized = EE_PROM_STAMP1_P1 == EEPROM.read(0) && EE_PROM_STAMP1_P2 == EEPROM.read(1);
+  D_EEPROM_PRINT("EEPROM stamp found ");
+  D_EEPROM_PRINTLN(is_initialized);
 
   if(is_initialized) {
     ee_prom_num_entries = EEPROM.read(EE_PROM_NUM_TAG_ENTRIES);
@@ -46,14 +42,18 @@ BICYCLE_STATUS init_ee_prom(){
     unsigned int nedded_space = 2 + 1 + (EE_PROM_RFID_TAG_SIZE + EE_PROM_PHONE_NUMBER_SIZE + 1) * ee_prom_num_entries;
 
     is_initialized = is_initialized && nedded_space < EEPROM.length(); 
+    D_EEPROM_PRINT("Number of entries valid: ");
+    D_EEPROM_PRINTLN(is_initialized);
   }
 
   if(!is_initialized) {
+    D_EEPROM_PRINTLN("EEPROM not valid. clear ...");
     ee_prom_clear();
   }
-
-  return ee_prom_num_entries > 0 ? BICYCLE_STATUS::UNLOCKED : BICYCLE_STATUS::INIT;
+  D_EEPROM_PRINT("Number of entries in eeprom: ");
+  D_EEPROM_PRINTLN(ee_prom_num_entries);
   
+  return ee_prom_num_entries > 0;
 }
 
 
@@ -131,27 +131,59 @@ bool ee_prom_contains_phone_number(const String &phone_number){
   return false;
 }
 
-void ee_prom_write_tag(const uint8_t *tag, const String &phone_number){
-  unsigned int tag_write_index = (ee_prom_num_entries) * (EE_PROM_RFID_TAG_SIZE + EE_PROM_PHONE_NUMBER_SIZE) + EE_PROM_DATA_OFFSET;
+bool isPhoneNumberValid(const String &phone_number){
+  bool retVal = phone_number.length() > 3 && phone_number.length() < EE_PROM_PHONE_NUMBER_SIZE;
 
+  char value;
+  for(uint8_t i = 0; i < phone_number.length() && retVal; i++){
+    // the phone number is written in ascii. break it down
+    value = phone_number.charAt(i) - '0';
+    retVal = value >= 0 && value < 10;
+  }
+  
+  return retVal;
+}
+
+void ee_prom_write_tag(const uint8_t *tag, const String &phone_number){
+  D_EEPROM_PRINT("Prepare write rfid tag with phone number ");
+  D_EEPROM_PRINTLN(phone_number);
+
+  if(!isPhoneNumberValid){
+    D_EEPROM_PRINTLN("invalid phone number. Don't write it to EEPROM");
+    return;
+  }
+  unsigned int tag_write_index = (ee_prom_num_entries) * (EE_PROM_RFID_TAG_SIZE + EE_PROM_PHONE_NUMBER_SIZE) + EE_PROM_DATA_OFFSET;
+  
   if(tag_write_index + EE_PROM_RFID_TAG_SIZE + EE_PROM_PHONE_NUMBER_SIZE >= EEPROM.length()){
     // not enough space available
+    D_EEPROM_PRINT("Sorry cannot write onto eeprom. Not enough space !. Tried to write on start index ");
+    D_EEPROM_PRINTLN(tag_write_index);
     return;
   }
 
   for(uint8_t i = 0; i < EE_PROM_RFID_TAG_SIZE; i++){
     EEPROM.write(tag_write_index + i, tag[i]);
+    D_EEPROM_PRINT("Write tag byte ");
+    D_EEPROM_PRINTLN(tag[i]);
+    D_EEPROM_PRINT("' on index ");
+    D_EEPROM_PRINTLN(tag_write_index + i);
   }
 
-  tag_write_index += EE_PROM_PHONE_NUMBER_SIZE;
+  tag_write_index += EE_PROM_RFID_TAG_SIZE;
   for(uint8_t i = 0; i < min(phone_number.length(),EE_PROM_PHONE_NUMBER_SIZE); i++){
-    EEPROM.write(tag_write_index + i, tag[i]);
+    EEPROM.write(tag_write_index + i, phone_number.charAt(i));
+    D_EEPROM_PRINT("Write phone sign '");
+    D_EEPROM_PRINT(phone_number.charAt(i));
+    D_EEPROM_PRINT("' on index ");
+    D_EEPROM_PRINTLN(tag_write_index + i);
   }
 
   tag_write_index += phone_number.length();
   // now fill the remaining phone number cell with a constant
   for(uint8_t i = 0; i < EE_PROM_PHONE_NUMBER_SIZE - phone_number.length(); ++i){
     EEPROM.write(tag_write_index + i, EE_PROM_PHONE_FILLER);
+    D_EEPROM_PRINT("Write phone filler sign on ");
+    D_EEPROM_PRINTLN(tag_write_index + i);
   }
   
   
@@ -160,11 +192,15 @@ void ee_prom_write_tag(const uint8_t *tag, const String &phone_number){
 }
 
 void ee_prom_clear(){
+  D_EEPROM_PRINT("entered ee_prom_clear");
   ee_prom_num_entries = 0;
 
   EEPROM.write(0, EE_PROM_STAMP1_P1);
   EEPROM.write(1, EE_PROM_STAMP1_P2);
   EEPROM.write(EE_PROM_NUM_TAG_ENTRIES,0);
+
+
+  D_EEPROM_PRINT("eeprom cleared");
 }
 
 bool ee_prom_give_me_a_phone_number(String &out_phone_number){

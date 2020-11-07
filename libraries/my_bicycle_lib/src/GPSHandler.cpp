@@ -1,10 +1,7 @@
 #include "GPSHandler.h"
-#include "SoftwareSerialToken.h"
-
 
     void GPSHandler::init() {
       serial.begin(9600);
-      softserial_token.gps_serial = &serial;
       tearDown();
     }
 
@@ -68,12 +65,10 @@
     }
 
     void GPSHandler::wakeup() {
-      softserial_token.acquire_token(SERIAL_LISTENER::GPS);
+      // at this point, we don't have to do something
     }
 
     void GPSHandler::tearDown() {      
-      softserial_token.release_token(SERIAL_LISTENER::GPS);
-
       // fire the fps callback
       if(callback){
         callback(state, location_to_determine);  

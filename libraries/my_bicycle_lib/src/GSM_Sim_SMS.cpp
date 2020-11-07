@@ -4,20 +4,31 @@
 
 #define CONTAINS_BUFFER_OK _buffer.indexOf(F("OK")) > -1
 
-#define METHOD_RETURN_IF_FALSE(_condition) {if(!_condition) {return false;}}
+#define SWITCH_SUCCESS_CONTINUE(_condition) {if(_condition) {++index;} else {delay(1000); continue;}}
 
-bool GSM_Sim_SMS::initSMS() {
+bool GSM_Sim_SMS::initSMS(uint8_t numtries) {
 	GSM_Sim::init();
-	bool retVal = setTextMode(true);
-	METHOD_RETURN_IF_FALSE(retVal);
+	uint8_t index = 0;
 	char sm[] = "SM";
-	retVal = retVal && setPreferredSMSStorage(sm, sm, sm);
-	METHOD_RETURN_IF_FALSE(retVal);
-	retVal = retVal && setNewMessageIndication();
-	METHOD_RETURN_IF_FALSE(retVal);
 	char ira[] = "IRA";
-	retVal = retVal && setCharset(ira);
-	return retVal;
+	for(uint8_t i = 0; i < numtries && index < 4; i++) {
+	  switch(index) {
+	    case 0:
+	    SWITCH_SUCCESS_CONTINUE(setTextMode(true));
+	    case 1:
+	    SWITCH_SUCCESS_CONTINUE(setPreferredSMSStorage(sm, sm, sm));
+	    case 2:
+	    SWITCH_SUCCESS_CONTINUE(setNewMessageIndication());
+	    case 3:
+	    SWITCH_SUCCESS_CONTINUE(setCharset(ira));
+	    break;
+	    default:
+	    break;
+	  }
+	}
+
+
+	return index >= 4;
 }
 
 bool GSM_Sim_SMS::setTextMode(bool textModeON) {
@@ -279,7 +290,8 @@ bool GSM_Sim_SMS::read_sms(SMSMessage &out_message, unsigned int index, bool mar
 	}
 	gsm.print("\r");
 
-	_readSerial(30000);
+	// max response time 5 seconds
+	_readSerial(5000);
 
 	//Serial.println("buffer:");
 	//Serial.println(_buffer);

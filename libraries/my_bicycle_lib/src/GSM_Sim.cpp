@@ -9,15 +9,6 @@ void GSM_Sim::init() {
 	_buffer.reserve(BUFFER_RESERVE_MEMORY);
 }
 
-
-String GSM_Sim::sendATCommand(char* command, uint32_t max_wait_time){
-	gsm.print(command);
-	gsm.print("\r");
-	_readSerial(max_wait_time);
-	return _buffer;
-
-}
-
 bool GSM_Sim::setPhoneFunctionalityMode(byte level){
 	if(level == 0 || level == 1 || level == 4) {
 		gsm.print(F("AT+CFUN="));
@@ -108,10 +99,13 @@ bool GSM_Sim::saveSettingsToModule(){
 
 void GSM_Sim::_readSerial(uint32_t timeout) {
 	_buffer = "";
+
 	uint64_t timeOld = millis();
 	
-	while (!gsm.available() && !(millis() > timeOld + timeout)) { ; }
-	if(gsm.available()) { _buffer = gsm.readString(); }
-	//Serial.print("buffer: ");	
-	//Serial.println(_buffer);
+	while (!gsm.available() && !(millis() > timeOld + timeout)) {
+	  // do nothing. Just wait for data;
+	}
+	if(gsm.available()) {
+	  _buffer = gsm.readString();
+	}
 }
