@@ -1,20 +1,6 @@
 
 SIM_COMMAND parse_message(const String &message);
 
-static bool find_phone_number(String &out_number){
-  bool success = true;
-
-  if(bicycle.phone_number.length() > 0){
-    out_number = bicycle.phone_number;
-  } else {
-    // TODO: ask eeprom
-    success = false;
-  }
-
-  return success;
-}
-
-
 String tmp_sms_sender_phone_number;
 
 void process_incoming_sms(int index) {
@@ -33,6 +19,7 @@ void process_incoming_sms(int index) {
       D_SIM_PRINT(" with phone number ");
       ee_prom_write_tag((uint8_t *)&possible_pairing_tag, message.phone_number);
       is_possble_pairing_tag_up_to_date = false;
+      enable_buzzer(100,2,100);
   } else if (ee_prom_contains_phone_number(message.phone_number)) {
 
     switch (command) {
@@ -44,6 +31,8 @@ void process_incoming_sms(int index) {
         bicycle.set_gps_callback(gps_callback_sms_send_status);
         tmp_sms_sender_phone_number = "";
         tmp_sms_sender_phone_number += message.phone_number;
+        D_SIM_PRINT("Set tmp_sms_sender_phone_number to: ");
+        D_SIM_PRINTLN(tmp_sms_sender_phone_number);
         break;
       default:
         break;
@@ -69,8 +58,6 @@ void process_incoming_sms(int index) {
   }
   sms.delete_sms(index);
 }
-
-
 
 SIM_COMMAND parse_message(const String &message) {
   // convertes the message to SIM_COMMAND

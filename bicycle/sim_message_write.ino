@@ -1,8 +1,8 @@
 
 void gps_callback_sms_send_status(GPSState state, GPSLocation *location) {
-#ifdef ARDUINO_DEBUG
+  // stop listen to GPS module
   sim_800l.listen();
-#endif
+
   D_SIM_PRINTLN("Send status sms");
   if(tmp_sms_sender_phone_number.length() <= 0){
     D_SIM_PRINTLN("Cannot write status sms. Tmp SMS Sender length is zero");
@@ -28,7 +28,7 @@ void gps_callback_sms_send_status(GPSState state, GPSLocation *location) {
     gpsCoordinates += ",";
     gpsCoordinates += String(location->lng(), 8);
   } else {
-    gpsCoordinates += "UNKNWON";
+    gpsCoordinates += "UNKNOWN";
   }
 
   String volt(bicycle.battery_voltage);
@@ -60,10 +60,10 @@ bool sms_send_low_battery() {
 }
 
 void sms_send_stolen_bicycle(GPSState, GPSLocation* location) {
-#ifdef ARDUINO_DEBUG
+  // stop listen to GPS module
   D_SIM_PRINTLN("Listen to sim serial");
   sim_800l.listen();
-#endif
+
   
   // check if the bicycle is still in stolen mode
   if (bicycle.current_status() != BICYCLE_STATUS::STOLEN || bicycle.phone_number.length() <= 0) {

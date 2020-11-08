@@ -1,8 +1,7 @@
 void gps_callback_check_stolen(GPSState gpsState, GPSLocation * /* not needed */);
 
-#ifdef ARDUINO_DEBUG
-  extern SoftwareSerial __sim800l;
-#endif
+extern SoftwareSerial sim_800l;
+
 
 
 void init_shock() {
@@ -39,14 +38,13 @@ bool is_bicylce_stolen() {
 }
 
 void gps_callback_check_stolen(GPSState gpsState, GPSLocation * /* not needed */){
-#ifdef ARDUINO_DEBUG
     D_SIM_PRINTLN("Listen to sim serial");
-    __sim800l.listen();
-#endif
+    sim_800l.listen();
+
   
     if(gpsState == GPSState::GPS_SUCCESS && bicycle.current_status() == BICYCLE_STATUS::LOCKED && is_bicylce_stolen()){
       bicycle.setStatus(BICYCLE_STATUS::STOLEN);
-    } else {
+    } else if(bicycle.current_status() == BICYCLE_STATUS::LOCKED) {
       // remain in current state -> LOCKED
       set_shock_sensor_enabled(true);
     }

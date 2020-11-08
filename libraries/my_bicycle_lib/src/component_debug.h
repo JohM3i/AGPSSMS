@@ -2,19 +2,18 @@
 #define __COMPONENT_DEBUG_H__
 
 // enable logging using usb serial
-#define ARDUINO_DEBUG
-// enable logging of shock sensor
-#define ARDUINO_DEBUG_SHOCK
-// enable logging of gps modul
-#define ARDUINO_DEBUG_GPS
+//#define ARDUINO_DEBUG
 
-#define ARDUINO_DEBUG_BATTERY
+//#define ARDUINO_DEBUG_SHOCK
+//#define ARDUINO_DEBUG_GPS
 
-#define ARDUINO_DEBUG_SIM
+//#define ARDUINO_DEBUG_BATTERY
 
-#define ARDUINO_DEBUG_EEPROM
+//#define ARDUINO_DEBUG_SIM
 
-#define ARDUINO_DEBUG_RFID
+//#define ARDUINO_DEBUG_EEPROM
+
+//#define ARDUINO_DEBUG_RFID
 
 
 #if defined(ARDUINO_DEBUG)

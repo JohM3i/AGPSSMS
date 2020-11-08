@@ -11,7 +11,7 @@
 
 //********************* VARIABLES ********************** //
 #define GPS_DISTANCE_TO_STOLEN_IN_METERS 20
-#define SMS_SEND_LOW_BATTERY_AT_PERCENT 25
+#define SMS_SEND_LOW_BATTERY_AT_PERCENT 40
 //******************* VARIABLES END ******************** //
 
 
@@ -22,7 +22,7 @@ Bicycle bicycle;
 
 //************ FORWARD DECLARATIONS - Methods ************ //
 // init and loop methods of different files
-
+void enable_buzzer(unsigned int ms_sound, unsigned int repeat = 1, unsigned int delay_ms = 0);
 #define FILE_FORWARD(file) void init_file(); void loop_file(Bicycle &bicycle);
 
 FILE_FORWARD(buzzer);
@@ -66,6 +66,7 @@ void setup() {
   D_PRINTLN("Init rfid");
   init_id_12_la();
   D_PRINTLN("Initialization end");
+  enable_buzzer(1000);
 }
 
 void loop() {

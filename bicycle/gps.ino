@@ -9,10 +9,14 @@ GPSHandler gps_handler(gps_serial);
 void gps_callback_check_stolen(GPSState, GPSLocation *);
 
 
-void init_gps() {
 
+
+bool has_gsm_listening_blocked;
+void init_gps() {
   gps_handler.init();
+  has_gsm_listening_blocked = false;
 }
+
 
 
 void gpsReadTimeOut() {    
@@ -24,6 +28,16 @@ void loop_gps(Bicycle &bicycle){
 
   GPSState gpsState = gps_handler.loop();
 
+  switch (gpsState) {
+    case GPSState::GPS_SUCCESS:
+    case GPSState::GPS_TIMEOUT:
+      has_gsm_listening_blocked = true;
+      break;
+    default:
+      break;
+  }
+
+
   if(bicycle.is_queued_gps_callback() && gpsState == GPSState::GPS_IDLE){
     // determine, which location we should track
     GPSLocation *location_to_determine = bicycle.current_location();
@@ -33,7 +47,9 @@ void loop_gps(Bicycle &bicycle){
     }
 
     gps_handler.start_tracking(location_to_determine, bicycle.pop_gps_callback());
-    
   }
+
+
+  
 
 }

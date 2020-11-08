@@ -4,12 +4,9 @@
 #define SIM_SERIAL_RX_PIN 0
 #define SIM_SERIAL_TX_PIN 1
 
-#ifdef ARDUINO_DEBUG
-  SoftwareSerial __sim800l(SIM_SERIAL_RX_PIN, SIM_SERIAL_TX_PIN);
-  #define sim_800l __sim800l
-#else 
-  #define sim_800l Serial;
-#endif
+SoftwareSerial sim_800l(SIM_SERIAL_RX_PIN, SIM_SERIAL_TX_PIN);
+//#define sim_800l __sim800l
+
 
 // SMS read/write declarations
 
@@ -34,20 +31,18 @@ bool send_low_battery;
 
 bool init_gsm();
 
+bool is_gsm_listing_busy;
+
+
 // methods called by setup() and loop()
 
 void init_sim() {
-  #ifdef ARDUINO_DEBUG
-  D_SIM_PRINTLN("use sim softwareserial");
-  #else
-  D_SIM_PRINTLN("use sim hardware serial");
-  #endif
-  
   sim_800l.begin(9600);
     
   send_low_battery = false;
 
   init_gsm();
+  is_gsm_listing_busy = false;
 }
 
 void loop_sim(Bicycle &bicycle) {
@@ -86,15 +81,77 @@ void loop_sim(Bicycle &bicycle) {
     D_PRINT(index_received_sms);
     process_incoming_sms(index_received_sms);
   }
+
+  if(has_gsm_listening_blocked || is_gsm_listing_busy){
+    // Maybe notification from Serial did not work. In this case, we have to lookup the SIM message storage. Maybe
+    // mutliple messages has to be parsed
+    is_gsm_listing_busy = true;
+    // list all unread SMS
+    String sms_indices = "";
+    // list all unread messages
+    int8_t num_sms = sms.list(sms_indices, true);
+    if(num_sms > 0){
+      // process only a single SMS
+      uint8_t start = 0;
+      uint8_t end = sms_indices.indexOf(",", start);
+      int sms_index = -1;
+      if(end >= 0){
+        sms_index = sms_indices.substring(start, end).toInt();
+      } else {
+        sms_index = sms_indices.substring(start).toInt();
+      }
+
+      process_incoming_sms(sms_index);
+
+    } else {
+      // (num_sms <= 0)
+      is_gsm_listing_busy = false;
+
+    }
+
+
+    sms.delete_sms_all_read();
+    // After every GPS callback, we listen to GSM serial again. Thus the loss of information (SMS received notifition)
+    // can be countered 
+    has_gsm_listening_blocked = false;
+  }
+
 }
 
 bool init_gsm(){
   D_SIM_PRINT("sms initialization complete: ");
   bool retVal = sms.initSMS(5);
-  D_SIM_PRINTLN(retVal);
+
+  if(!retVal){
+    D_SIM_PRINT("sms initialization failed: ");
+    enable_buzzer(100,3,50);
+    delay(1000);
+  }
+
+  if(!sms.isSimInserted()){
+    D_SIM_PRINTLN("No SIM-Kart found: ");
+    enable_buzzer(100,5,50);
+    delay(1000);
+  }
   
-  D_SIM_PRINT("Set echo on: ");
-  D_SIM_PRINTLN(sms.echoOn());
+
+  
+  D_SIM_PRINTLN(retVal);
+
+  bool is_registered = sms.isRegistered();
+
+  if(!is_registered) {
+    for(uint8_t i = 0; i < 4 && !sms.isRegistered(); ++i){
+      delay(2000);
+      is_registered = sms.isRegistered();
+    }
+
+    if(!is_registered){
+      D_SIM_PRINTLN("No Registered in network: ");
+      enable_buzzer(100,4,50);
+    }
+  }
+  
 
   D_SIM_PRINT("is Module Registered to Network?... ");
   D_SIM_PRINTLN(sms.isRegistered());

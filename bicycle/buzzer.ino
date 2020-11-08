@@ -1,4 +1,3 @@
-
 #define BUZZER_PIN 6
 
 void init_buzzer() {
@@ -12,10 +11,10 @@ void loop_buzzer(Bicycle &bicycle){
 
 }
 
-void enable_buzzer(unsigned int ms_sound, unsigned int repeat = 1, unsigned int delay_ms = 0){
+void enable_buzzer(unsigned int ms_sound, unsigned int repeat, unsigned int delay_ms){
   for(uint8_t i = 0u; i < repeat; i++) {
     digitalWrite(BUZZER_PIN, HIGH);
-    Serial.println("buzzer on");
+    //Serial.println("buzzer on");
     delay(ms_sound);
     digitalWrite(BUZZER_PIN, LOW);
 

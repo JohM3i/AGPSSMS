@@ -52,6 +52,7 @@ void loop_id_12_la(Bicycle &bicycle) {
         bicycle.invalidate_gps_coordinates();
       } else if (bicycle.current_status() == BICYCLE_STATUS::UNLOCKED ||  bicycle.current_status() == BICYCLE_STATUS::INIT) {
         D_RFID_PRINTLN("Reserve Tag for possible pairing");
+        enable_buzzer(100, 3, 200);
         possible_pairing_tag = aId;
         is_possble_pairing_tag_up_to_date = true;
       }
