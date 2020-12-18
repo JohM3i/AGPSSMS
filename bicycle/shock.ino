@@ -40,6 +40,7 @@ bool is_bicylce_stolen() {
 void gps_callback_check_stolen(GPSState gpsState, GPSLocation * /* not needed */){
     D_SIM_PRINTLN("Listen to sim serial");
     sim_800l.listen();
+    has_gsm_listening_blocked = true;
 
   
     if(gpsState == GPSState::GPS_SUCCESS && bicycle.current_status() == BICYCLE_STATUS::LOCKED && is_bicylce_stolen()){

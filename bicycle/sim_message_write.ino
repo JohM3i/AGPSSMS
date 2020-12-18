@@ -2,6 +2,8 @@
 void gps_callback_sms_send_status(GPSState state, GPSLocation *location) {
   // stop listen to GPS module
   sim_800l.listen();
+  has_gsm_listening_blocked = true;
+
 
   D_SIM_PRINTLN("Send status sms");
   if(tmp_sms_sender_phone_number.length() <= 0){
@@ -63,6 +65,7 @@ void sms_send_stolen_bicycle(GPSState, GPSLocation* location) {
   // stop listen to GPS module
   D_SIM_PRINTLN("Listen to sim serial");
   sim_800l.listen();
+  has_gsm_listening_blocked = true;
 
   
   // check if the bicycle is still in stolen mode

@@ -7,7 +7,7 @@
 //*************** TIMER_INTERVALS IN MS **************** //
 //
 // 20 seconds
-#define TIME_TO_ACQUIRE_GPS_LOCATION 20000
+#define TIME_TO_ACQUIRE_GPS_LOCATION 30000
 
 #define TIME_CYCLE_READ_BATTERY_CAPACITY 300000
 

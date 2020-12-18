@@ -28,16 +28,6 @@ void loop_gps(Bicycle &bicycle){
 
   GPSState gpsState = gps_handler.loop();
 
-  switch (gpsState) {
-    case GPSState::GPS_SUCCESS:
-    case GPSState::GPS_TIMEOUT:
-      has_gsm_listening_blocked = true;
-      break;
-    default:
-      break;
-  }
-
-
   if(bicycle.is_queued_gps_callback() && gpsState == GPSState::GPS_IDLE){
     // determine, which location we should track
     GPSLocation *location_to_determine = bicycle.current_location();
