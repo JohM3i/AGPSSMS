@@ -10,8 +10,9 @@ String bicycle_status_to_string(BICYCLE_STATUS);
 
 class Bicycle {
   public:
-    Bicycle();
-    
+
+    static Bicycle &getInstance();  
+  
     void setStatus(BICYCLE_STATUS status);
 
     BICYCLE_STATUS current_status() const;
@@ -43,7 +44,12 @@ class Bicycle {
     // the capacity of the battery in percent (range 0-100);
     uint8_t battery_percent;
 
+    Bicycle(Bicycle const&)               = delete;
+    void operator=(Bicycle const&)  = delete;
+
   private:
+    Bicycle();
+  
     // the current state of the bicycle
     BICYCLE_STATUS _current_status;
     // the previous state of the bicycle

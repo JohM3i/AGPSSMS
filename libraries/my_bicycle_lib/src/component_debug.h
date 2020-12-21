@@ -2,18 +2,18 @@
 #define __COMPONENT_DEBUG_H__
 
 // enable logging using usb serial
-//#define ARDUINO_DEBUG
+#define ARDUINO_DEBUG
 
-//#define ARDUINO_DEBUG_SHOCK
-//#define ARDUINO_DEBUG_GPS
+#define ARDUINO_DEBUG_SHOCK
+#define ARDUINO_DEBUG_GPS
 
-//#define ARDUINO_DEBUG_BATTERY
+#define ARDUINO_DEBUG_BATTERY
 
-//#define ARDUINO_DEBUG_SIM
+#define ARDUINO_DEBUG_SIM
 
-//#define ARDUINO_DEBUG_EEPROM
+#define ARDUINO_DEBUG_EEPROM
 
-//#define ARDUINO_DEBUG_RFID
+#define ARDUINO_DEBUG_RFID
 
 
 #if defined(ARDUINO_DEBUG)
@@ -98,7 +98,5 @@
   #define D_EEPROM_PRINTLN(text)
   #define D_EEPROM_WRITE(text)
 #endif
-
-
 
 #endif // __COMPONENT_DEBUG_H__

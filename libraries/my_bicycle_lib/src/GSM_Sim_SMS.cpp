@@ -2,6 +2,7 @@
 #include "Arduino.h"
 #include "GSM_Sim_SMS.h"
 
+
 #define CONTAINS_BUFFER_OK _buffer.indexOf(F("OK")) > -1
 
 #define SWITCH_SUCCESS_CONTINUE(_condition) {if(_condition) {++index;} else {delay(1000); continue;}}

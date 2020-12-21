@@ -8,7 +8,9 @@ void init_shock() {
   shock_sensor_init();
 }
 
-void loop_shock(Bicycle &bicycle){  
+void loop_shock(){  
+  auto &bicycle = Bicycle::getInstance();
+  
   if(bicycle.current_status() == BICYCLE_STATUS::LOCKED && is_shock_registered()) {
     D_SHOCK_PRINTLN("A shock has been registered");
     
@@ -21,7 +23,7 @@ void loop_shock(Bicycle &bicycle){
 }
 
 bool is_bicylce_stolen() {
-
+    auto &bicycle = Bicycle::getInstance();
     if(!bicycle.locked_location()->isValid() || !bicycle.current_location()->isValid()){
       // one of the GPS locations is not valid -> cannot compute a distance
       D_GPS_PRINTLN("One of the GPS coordinates is not valid. Return bike is not stolen.");
@@ -38,10 +40,7 @@ bool is_bicylce_stolen() {
 }
 
 void gps_callback_check_stolen(GPSState gpsState, GPSLocation * /* not needed */){
-    D_SIM_PRINTLN("Listen to sim serial");
-    sim_800l.listen();
-    has_gsm_listening_blocked = true;
-
+    auto &bicycle = Bicycle::getInstance();
   
     if(gpsState == GPSState::GPS_SUCCESS && bicycle.current_status() == BICYCLE_STATUS::LOCKED && is_bicylce_stolen()){
       bicycle.setStatus(BICYCLE_STATUS::STOLEN);

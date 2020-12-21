@@ -1,6 +1,6 @@
 #include "GSM_Sim_Handler.h"
-
 #include "timer.h"
+#include "component_debug.h"
 
 #define DEFAULT_TIME_OUT_READ_SERIAL	5000
 #define GSM_QUEUE_MAX_SIZE 4
@@ -17,10 +17,10 @@ struct Q_element {
   unsigned long max_response_time;
   String command;
   gsm_f callback;
-}
+};
 
 
-Q_element queue[GSM_QUEUE_MAX_SIZE];
+Q_element queue[GSM_QUEUE_MAX_SIZE] = {};
 
 unsigned int current_index = 0;
 unsigned int num_queued_elements = 0;
@@ -29,7 +29,7 @@ unsigned int num_queued_elements = 0;
 GSMModuleState moduleState;
 GSMModuleResponseState responseState;
 
-Stream &gsm;
+Stream *gsm = nullptr;
 String response_buffer;
 timer_t timer_id = TIMER_INVALID;
 
@@ -38,15 +38,18 @@ static void command_timed_out();
 static void armTimeoutTimer(unsigned long max_response_time);
 static void disarmTimer();
 static void queue_element(const String &command, gsm_f callback, unsigned long max_response_time = DEFAULT_TIME_OUT_READ_SERIAL);
-static int indexOfRange(const String &src, const String &match, int from, int to)
+static int indexOfRange(const String &src, const String &match, int from, int to);
 static void parseSMSHeader(SMSMessage &out_message, int index_header_start, int index_header_end, String &buffer);
 
-void gsm_init_module(Stream &stream) {
+void gsm_init_module(Stream *stream) {
   gsm = stream;
   response_buffer.reserve(RESPONSE_BUFFER_RESERVE_MEMORY);
+  
+  moduleState = GSMModuleState::SLEEP;
+  gsm_wakeup();
 }
 
-GSMState gsm_loop() {
+GSMModuleState gsm_loop() {
 
   bool onRepeat = false;
 
@@ -56,7 +59,7 @@ GSMState gsm_loop() {
       case GSMModuleState::WAKE_UP:
         // Nothing to do here
         break;
-      case GSMModuleState::READY:
+      case GSMModuleState::READY: {
         // the gsm module is ready, but no further communication happened yet.delete_sms_all_read
         // -> check if some workload is queued
         onRepeat = false;
@@ -64,28 +67,30 @@ GSMState gsm_loop() {
           break;
         }
         // we have to communicate with the gsm module at the current index
-        auto &element = queue[queue_index];
-        gsm.print(element.command);
+        auto &element = queue[current_index];
+        D_SIM_PRINTLN("GSM execute command " + element.command);
+        gsm->print(element.command);
         // start timeout timer
         responseState = GSMModuleResponseState::UNKNOWN;
         armTimeoutTimer(element.max_response_time);
         moduleState = GSMModuleState::BUSY;
- 
-      case GSMModuleState::BUSY:
+      }
+      case GSMModuleState::BUSY: {
         // a command to gsm module has already been fired
         switch(responseState) {
           case GSMModuleResponseState::UNKNOWN:
-            if(!gsm.available()){
+            if(!gsm->available()){
               break;
             }
-            response_buffer = gsm.readString();
+            response_buffer = gsm->readString();
             responseState = GSMModuleResponseState::SUCCESS;
-          case GSMMOduleResponseState::SUCCESS:
+            D_SIM_PRINTLN("GSM response: " + response_buffer);
+          case GSMModuleResponseState::SUCCESS:
             // when we were successfull, we have to disable the timeout timer
             disarmTimer();
           case GSMModuleResponseState::TIMEOUT:
             // in case success and timeout, we can fire the callback with the given response
-            auto &element = queue[queue_index];
+            auto &element = queue[current_index];
             if(element.callback) {
               element.callback(response_buffer, responseState);
             }
@@ -101,6 +106,7 @@ GSMState gsm_loop() {
         }
       
       break;
+      }
     }
   } while(onRepeat);
   
@@ -143,7 +149,9 @@ void gsm_queue_save_settings_to_module(gsm_f callback) {
 }
 
 void gsm_queue_set_text_mode(bool textModeOn, gsm_f callback) {
-  String command = "AT+CMGF=" + (textModeOn ? "1" : "0") + "\r";
+  String command = "AT+CMGF=";
+  command += (textModeOn ? "1" : "0");
+  command += "\r";
   queue_element(command, callback);
 }
 
@@ -164,7 +172,7 @@ void gsm_queue_set_charset(const String &charset, gsm_f callback) {
 
 
 struct SendSMSHelper {
-  static void collect_send_sms_buffer(String &response, GSMModuleResponseState &state){
+  static void collect_send_sms_buffer(String &response, GSMModuleResponseState state){
     t_buffer_send_sms += response;
   }
   
@@ -177,13 +185,18 @@ struct SendSMSHelper {
     t_buffer_send_sms = "";
   }
   
-  static String t_buffer_send_sms = "";
-  static gsm_f t_callback_send_sms = nullptr;
-}
+  static String t_buffer_send_sms;
+  static gsm_f t_callback_send_sms;
+};
+String SendSMSHelper::t_buffer_send_sms = "";
+gsm_f SendSMSHelper::t_callback_send_sms = nullptr;
 
 void gsm_queue_send_sms(const String &number, const String &message, gsm_f callback) {
   SendSMSHelper::t_callback_send_sms = callback;
-  String command = "AT+CMGS=\"" + number + "\"\r";
+  SendSMSHelper::t_buffer_send_sms = "";
+  String command = "AT+CMGS=\"";
+  command += number;
+  command += "\"\r";
   queue_element(command, SendSMSHelper::collect_send_sms_buffer);
   queue_element(message, SendSMSHelper::collect_send_sms_buffer);
   command = (char) 26;
@@ -191,7 +204,11 @@ void gsm_queue_send_sms(const String &number, const String &message, gsm_f callb
 }
 
 void gsm_queue_read_sms(unsigned int index, bool markRead, gsm_f callback) {
-  String command = "AT+CMGR=" + index + "," + (markRead ? "0" : "1") + "\r";
+  String command = "AT+CMGR=";
+  command += index;
+  command += ",";
+  command += (markRead ? "0" : "1");
+  command += "\r";
   queue_element(command, callback, 5000);
 }
 
@@ -199,14 +216,13 @@ void gsm_queue_read_sms(unsigned int index, bool markRead, gsm_f callback) {
 struct ListSMSHelper {
 
   static void parse_response_to_index_list(String &response, GSMModuleResponseState state){
-    processed_response = "";
+    String processed_response = "";
     if(state == GSMModuleResponseState::SUCCESS){
       // parse
       if(response.indexOf("ERROR") == -1) {
         // the response contains the data
         if(response.indexOf("+CMGL:") != -1) {
           bool quitLoop = false;
-          returnData = "";
 
           while(!quitLoop) {
             if(response.indexOf("+CMGL:") < 0) {
@@ -218,12 +234,11 @@ struct ListSMSHelper {
             String metin = response.substring(0, response.indexOf(","));
             metin.trim();
 
-            retVal++;
-            if(proccessed_response == "") {
-              proccessed_response += metin;
+            if(processed_response == "") {
+              processed_response += metin;
             } else {
-              proccessed_response += ",";
-              proccessed_response += metin;
+              processed_response += ",";
+              processed_response += metin;
             }
 
           }
@@ -238,21 +253,21 @@ struct ListSMSHelper {
       t_callback_list_sms(processed_response, state);
       t_callback_list_sms = nullptr;
     }
-    proccessed_response = "";
   }
-  static gsm_f t_callback_list_sms = nullptr;
-  static String proccessed_response = "";
-}
+  static gsm_f t_callback_list_sms;
+};
+gsm_f ListSMSHelper::t_callback_list_sms = nullptr;
 
-
-void gsm_queue_list_sms(bool onlyUnred, gsm_f callback) {
+void gsm_queue_list_sms(bool onlyUnread, gsm_f callback) {
   String command = onlyUnread ? "AT+CMGL=\"REC UNREAD\",1\r" : "AT+CMGL=\"ALL\",1\r";
   ListSMSHelper::t_callback_list_sms = callback;
   queue_element(command, ListSMSHelper::parse_response_to_index_list);
 }
 
 void gsm_queue_delete_sms(unsigned int index, gsm_f callback) {
-  String command = "AT+CMGD=" + index + ",0\r";
+  String command = "AT+CMGD=";
+  command += index;
+  command += ",0\r";
   queue_element(command, callback);
 }
 
@@ -267,12 +282,17 @@ void gsm_queue_delete_sms_all(gsm_f callback) {
 }
 
 int gsm_serial_message_received() {
-  if(!gsm.available()){
+  if(moduleState != GSMModuleState::READY){
     return -1;
   }
-  response_buffer = gsm.readString();
-
-  serial_message_received(response_buffer);
+  
+  if(!gsm->available()) {
+    return -1;
+  }
+  
+  response_buffer = gsm->readString();
+  D_SIM_PRINTLN("GSM response found on buffer: " + response_buffer);
+  return gsm_serial_message_received(response_buffer);
 }
 
 int gsm_serial_message_received(String &serialRaw) {
@@ -299,7 +319,7 @@ bool gsm_parse_sms_message(SMSMessage &out_message, String &response) {
     // Spezicfication <Header><CR><LF><data><response OK>
     int message_header_end = response.indexOf("\r\n", message_start);
 
-    parseHeaderData(out_message, message_start, message_header_end, response);
+    parseSMSHeader(out_message, message_start, message_header_end, response);
 
     // remove <CR><LF>. Now it points directly to the message
     int message_data_begin = message_header_end + 2;
@@ -314,8 +334,18 @@ bool gsm_parse_sms_message(SMSMessage &out_message, String &response) {
   return false;
 }
 
-void gsm_wakeup() {
+static void wakeup_to_ready() {
+  disarmTimer();
+  moduleState = GSMModuleState::READY;
+  D_SIM_PRINTLN("GSM module set state ready");
+}
 
+void gsm_wakeup() {
+  if(moduleState == GSMModuleState::SLEEP){
+    D_SIM_PRINTLN("GSM wake up ...");
+    moduleState = GSMModuleState::WAKE_UP;
+    timer_id = timer_arm(5000, wakeup_to_ready);
+  }
 }
 
 void gsm_tear_down() {
@@ -326,6 +356,8 @@ void gsm_tear_down() {
 void command_timed_out() {
   responseState = GSMModuleResponseState::TIMEOUT;
   disarmTimer();
+  D_SIM_PRINTLN("GSM response timed out");
+  response_buffer = "";
 }
 
 void armTimeoutTimer(unsigned long max_response_time) {
@@ -337,12 +369,13 @@ void disarmTimer() {
 }
 
 void queue_element(const String &command, gsm_f callback, unsigned long max_response_time) {
-  auto queue_index = (current_index + ++num_queued_elements) % GSM_QUEUE_MAX_SIZE;
-  
+  auto queue_index = (current_index + num_queued_elements) % GSM_QUEUE_MAX_SIZE;
+  D_SIM_PRINTLN("GSM command queued: " + command);
   auto &element = queue[queue_index];
   element.max_response_time = max_response_time;
   element.command = command;
-  element.callback = callback; 
+  element.callback = callback;
+  num_queued_elements++;
 }
 
 int indexOfRange(const String &src, const String &match, int from, int to){

@@ -3,7 +3,8 @@
 #include "SoftwareSerial.h"
 #include "TinyGPS++.h"
 
-#include "GSM_Sim_SMS.h"
+//#include "GSM_Sim_SMS.h"
+#include "GSM_Sim_Handler.h"
 #include "timer.h"
 #include "ee_prom.h"
 #include "rfid.h"
@@ -15,15 +16,12 @@
 //******************* VARIABLES END ******************** //
 
 
-enum class SIM_COMMAND {UNKNOWN, PAIRING, RESET_ALL, STATUS};
-
-Bicycle bicycle;
 
 
 //************ FORWARD DECLARATIONS - Methods ************ //
 // init and loop methods of different files
 void enable_buzzer(unsigned int ms_sound, unsigned int repeat = 1, unsigned int delay_ms = 0);
-#define FILE_FORWARD(file) void init_file(); void loop_file(Bicycle &bicycle);
+#define FILE_FORWARD(file) void init_file(); void loop_file();
 
 FILE_FORWARD(buzzer);
 FILE_FORWARD(gps);
@@ -42,7 +40,7 @@ void setup() {
 
   D_PRINTLN("Init eeprom");
   bool is_eeprom_initialized = init_ee_prom();
-  bicycle.setStatus( is_eeprom_initialized ? BICYCLE_STATUS::UNLOCKED : BICYCLE_STATUS::INIT);
+  Bicycle::getInstance().setStatus( is_eeprom_initialized ? BICYCLE_STATUS::UNLOCKED : BICYCLE_STATUS::INIT);
 
   D_PRINTLN("Init battery");
   init_battery();
@@ -74,17 +72,19 @@ void loop() {
   // first check for timer events
   timer_notify();
 
-  loop_battery(bicycle);
+  loop_battery();
 
-  loop_id_12_la(bicycle);
+  loop_id_12_la();
   // loop gps has to be called before shock - if the gps callback is called and mode
   // is set to stolen, the shock sensor registers that bicycle status changed event
-  loop_gps(bicycle);
+  loop_gps();
 
-  loop_shock(bicycle);
+  loop_shock();
 
-  loop_sim(bicycle);
+  loop_sim();
 
+
+  auto &bicycle = Bicycle::getInstance();
   // after a cycle,
   if (bicycle.status_changed()) {
     bicycle.set_status_changed(false);

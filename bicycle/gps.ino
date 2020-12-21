@@ -23,8 +23,8 @@ void gpsReadTimeOut() {
   gps_handler.read_timed_out(); 
 }
 
-void loop_gps(Bicycle &bicycle){
-
+void loop_gps(){
+  auto &bicycle = Bicycle::getInstance();
 
   GPSState gpsState = gps_handler.loop();
 

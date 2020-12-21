@@ -14,8 +14,8 @@ void init_id_12_la() {
 
 
 
-void loop_id_12_la(Bicycle &bicycle) {
-
+void loop_id_12_la() {
+  auto &bicycle = Bicycle::getInstance();
   if (has_rfid_data_available()) {
     rfid_stop();
     Rfid_Tag aId;

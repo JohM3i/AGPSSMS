@@ -4,98 +4,314 @@
 #define SIM_SERIAL_RX_PIN 0
 #define SIM_SERIAL_TX_PIN 1
 
-SoftwareSerial sim_800l(SIM_SERIAL_RX_PIN, SIM_SERIAL_TX_PIN);
-//#define sim_800l __sim800l
+struct StorySendStolenSMS {
+
+  static void start(GPSLocation *location) {
+    sendSMS(GPSState::GPS_SUCCESS, location);
+    timer_id = timer_arm(TIME_CYCLE_SEND_STOLEN_SMS, trigger_acquire_gps_and_send_sms);
+  }
+
+  static void trigger_acquire_gps_and_send_sms() {
+    Bicycle::getInstance().set_gps_callback(sendSMS);
+  }
+
+  static void sendSMS(GPSState state, GPSLocation *location) {
+    auto &bicycle = Bicycle::getInstance();
+    // check if the bicycle is still in stolen mode
+    if (bicycle.current_status() != BICYCLE_STATUS::STOLEN || bicycle.phone_number.length() <= 0) {
+      return;
+    }
+
+    D_SIM_PRINTLN("Send stolen sms");
+
+    String lat(bicycle.current_location()->lat(), 8);
+    String lng(bicycle.current_location()->lng(), 8);
+    String volt(bicycle.battery_voltage);
+    String percent(bicycle.battery_percent);
+
+    String message = "Dein Fahrrad wurde geklaut.\nDie aktuelle position:\nhttps://www.google.com/maps/?q=" + lat + "," + lng +
+                     "\nAkkustand: " + volt + "mV" + " (" + percent + "%)";
+
+    gsm_queue_send_sms(bicycle.getInstance().phone_number, message, sendSMSCallback);
+  }
+
+  static void sendSMSCallback(String &response, GSMModuleResponseState state) {
+    // nothing to do here ?
+  }
+
+  static void stop() {
+    timer_disarm(&timer_id);
+  }
+
+  static timer_t timer_id;
+};
+timer_t StorySendStolenSMS::timer_id = TIMER_INVALID;
 
 
-// SMS read/write declarations
+class StorySMSReceived {
+  public:
+  static void process(unsigned int index) {
+    current_sms_index = index;
+    // index, mark as read, callback
+    gsm_queue_read_sms(index, true, callbackReadSMS);
+  }
+  
+  private:
+  enum class SIM_COMMAND {UNKNOWN, PAIRING, RESET_ALL, STATUS};
 
-// logic which processes an SMS on the SIM card
-void process_incoming_sms(int index);
-// sends the stolen bicycle sms
-void sms_send_stolen_bicycle(GPSState, GPSLocation*);
-// sends the sms for low battery
-bool sms_send_low_battery() ;
+  static SIM_COMMAND parseSMSBodyToCommand(const String &message) {
+    // convertes the message to SIM_COMMAND
+    // a command contains maximum 6 characters
+    String processed_message = message.substring(0, min(message.length(), 7));
+    processed_message.toLowerCase();
+    D_SIM_PRINT("Parse to command: ");
+    D_SIM_PRINTLN(processed_message);
+
+    if (processed_message.indexOf("status") >= 0) {
+      return SIM_COMMAND::STATUS;
+    } else if (processed_message.indexOf("pairing") >= 0) {
+      return SIM_COMMAND::PAIRING;
+    } else if (processed_message.indexOf("reset") >= 0) {
+      return SIM_COMMAND::RESET_ALL;
+    }
+    return SIM_COMMAND::UNKNOWN;
+  }
+
+  static void callbackReadSMS(String &response, GSMModuleResponseState state) {
+    SMSMessage message;
+    if (!gsm_parse_sms_message(message, response)) {
+      // reading sms failed
+      gsm_queue_delete_sms(current_sms_index, callbackDeleteSMS);
+      return;
+    }
+
+    auto command = parseSMSBodyToCommand(message.message);
+
+    if (command == SIM_COMMAND::PAIRING && is_possble_pairing_tag_up_to_date) {
+      // Save phone number in eeprom including the rfid tag
+      D_SIM_PRINT("Do pairing of tag ");
+      D_SIM_PRINT(possible_pairing_tag);
+      D_SIM_PRINT(" with phone number ");
+      ee_prom_write_tag((uint8_t *)&possible_pairing_tag, message.phone_number);
+      is_possble_pairing_tag_up_to_date = false;
+      enable_buzzer(100, 2, 100);
+    } else if (ee_prom_contains_phone_number(message.phone_number)) {
+      switch (command) {
+        case SIM_COMMAND::RESET_ALL:
+          // delete eeprom and set mode to init
+          Bicycle::getInstance().setStatus(BICYCLE_STATUS::RESET);
+          break;
+        case SIM_COMMAND::STATUS:
+          Bicycle::getInstance().set_gps_callback(gps_callback_sms_send_status);
+          status_command_sender_phone_number = "";
+          status_command_sender_phone_number += message.phone_number;
+          D_SIM_PRINT("Set tmp_sms_sender_phone_number to: ");
+          D_SIM_PRINTLN(status_command_sender_phone_number);
+          break;
+        default:
+          D_SIM_PRINTLN("SMS parsing error: \n" +  message.message);
+          break;
+      }
+
+    } else {
+      // sms from a unknown telephone number :/
+      String phone_number = "";
+
+      if (Bicycle::getInstance().phone_number.length() > 0) {
+        D_SIM_PRINTLN("SMS forward: use phone number of bicycle.");
+        phone_number += Bicycle::getInstance().phone_number;
+      } else if (!ee_prom_give_me_a_phone_number(phone_number)) {
+        D_SIM_PRINTLN("SMS forward: No phone number in eeprom found");
+        gsm_queue_delete_sms(current_sms_index, callbackDeleteSMS);
+        return;
+      }
+
+      D_SIM_PRINTLN("Forward SMS to " + phone_number);
+      // now we can forward the SMS message
+      String message_to_send = "Forward sms from " + message.phone_number + "\n" + message.message;
+      
+      gsm_queue_send_sms(phone_number, message_to_send, callbackSendSMS);
+    }
+    gsm_queue_delete_sms(current_sms_index, callbackDeleteSMS);
+  }
+
+  static void gps_callback_sms_send_status(GPSState state, GPSLocation *location) {
+    // stop listen to GPS module
+
+    auto &bicycle = Bicycle::getInstance();
 
 
-// timer based declarations
-void trigger_acqurie_gps_and_send_stolen_sms();
-timer_t timer_periodic_send_stolen_sms;
+    D_SIM_PRINTLN("Send status sms");
+    if (status_command_sender_phone_number.length() <= 0) {
+      D_SIM_PRINTLN("Cannot write status sms. Tmp SMS Sender length is zero");
+      return;
+    }
+
+    // get a valid GPS location
+    if (!location->isValid()) {
+      // fall back to other locations;
+      if (bicycle.current_location()->isValid()) {
+        location = bicycle.current_location();
+      } else if (bicycle.locked_location()->isValid()) {
+        location = bicycle.locked_location();
+      }
+    }
+
+    String gpsCoordinates = "";
+
+    if (location->isValid()) {
+      gpsCoordinates += "https://www.google.com/maps/?q=";
+      gpsCoordinates += String(location->lat(), 8);
+      gpsCoordinates += ",";
+      gpsCoordinates += String(location->lng(), 8);
+    } else {
+      gpsCoordinates += "UNKNOWN";
+    }
+
+    String volt(bicycle.battery_voltage);
+    String percent(bicycle.battery_percent);
+
+    String message = "Dein Fahrrad Status:\nDie aktuelle position:\n" + gpsCoordinates +
+                     "\nAkkustand: " + volt + "mV" + " (" + percent + "%)";
+
+    gsm_queue_send_sms(status_command_sender_phone_number, message, callbackSendSMS);
+
+    // reset the temporal sender phone number
+    status_command_sender_phone_number = "";
+  }
 
 
+  static void callbackDeleteSMS(String &response, GSMModuleResponseState state) {
 
-// gsm/sms based declarations
-GSM_Sim_SMS sms(sim_800l);
+  }
 
-bool send_low_battery;
+  static void callbackSendSMS(String &response, GSMModuleResponseState state) {
 
-bool init_gsm();
-
-bool is_gsm_listing_busy;
+  }
 
 
-// methods called by setup() and loop()
+  static String status_command_sender_phone_number;
+  static unsigned int current_sms_index;
+};
+String StorySMSReceived::status_command_sender_phone_number = "";
+unsigned int StorySMSReceived::current_sms_index = 0;
+
+
+struct InitializeGSMModule {
+  
+  static byte numTries; 
+
+  static void initialize(Stream *stream) {
+    gsm_init_module(stream);
+
+    numTries = 5;
+    gsm_queue_set_text_mode(true,setTextModeCallback);
+    
+    // initialization methods:
+    // setTextMode(true)
+    // setPreferredSMSStorage
+    // setNewMessageIndication
+    // setCharset
+  }
+
+  static void setTextModeCallback(String &response,GSMModuleResponseState state) {
+    if(gsm_response_contains_OK(response)){
+      String sm = "SM";
+      gsm_queue_set_preferred_sms_storage(sm, sm, sm, setPreferredSMSStorageCallback);
+    } else if (numTries > 0){
+      --numTries;
+      gsm_queue_set_text_mode(true, setTextModeCallback);
+    }
+    D_SIM_PRINT(numTries);
+    D_SIM_PRINTLN(" left");
+  }
+
+  static void setPreferredSMSStorageCallback(String &response,GSMModuleResponseState state) {
+    if(gsm_response_contains_OK(response)){
+      gsm_queue_set_new_message_indication(setNewMessageIndicationCallback);
+    } else if (numTries > 0) {
+      --numTries;
+      String sm = "SM";
+      gsm_queue_set_preferred_sms_storage(sm, sm, sm, setPreferredSMSStorageCallback);
+    }
+    D_SIM_PRINT(numTries);
+    D_SIM_PRINTLN(" left");
+  }
+
+  static void setNewMessageIndicationCallback(String &response, GSMModuleResponseState state) {
+    if(gsm_response_contains_OK(response)){
+      String charset = "IRA";
+      gsm_queue_set_charset(charset, setCharsetCallback);
+    } else if (numTries > 0) {
+      --numTries;
+      gsm_queue_set_new_message_indication(setNewMessageIndicationCallback);
+    }
+    D_SIM_PRINT(numTries);
+    D_SIM_PRINTLN(" left");
+  }
+
+  static void setCharsetCallback(String &response, GSMModuleResponseState state) {
+    if(!gsm_response_contains_OK(response) && numTries > 0){
+      --numTries;
+      String charset = "IRA";
+      gsm_queue_set_charset(charset, setCharsetCallback);
+    }
+    D_SIM_PRINT(numTries);
+    D_SIM_PRINTLN(" left");
+  }
+  
+};
+
+byte InitializeGSMModule::numTries = 0;
+
 
 void init_sim() {
-  sim_800l.begin(9600);
-    
-  send_low_battery = false;
+  Serial1.begin(9600);
 
-  init_gsm();
-  is_gsm_listing_busy = false;
+  InitializeGSMModule::initialize(&Serial1);
 }
 
-void loop_sim(Bicycle &bicycle) {
-
-  // check for bicycle stolen
+void loop_sim() {
+  auto &bicycle = Bicycle::getInstance();
+  // check for bicycle stolen story
   if (bicycle.status_changed()) {
 
     if (bicycle.current_status() == BICYCLE_STATUS::STOLEN) {
       // send info about stolen
       D_SIM_PRINTLN("Send stolen sms");
       // in this case we can assume that the current location of the bicycle is valid
-      sms_send_stolen_bicycle(GPSState::GPS_SUCCESS, bicycle.current_location());
-      timer_periodic_send_stolen_sms = timer_arm(TIME_CYCLE_SEND_STOLEN_SMS, trigger_acqurie_gps_and_send_stolen_sms);
+      StorySendStolenSMS::start(bicycle.current_location());
     }
 
     if (bicycle.previous_status() == BICYCLE_STATUS::STOLEN) {
       // disable send sms
-      timer_disarm(&timer_periodic_send_stolen_sms);
+      StorySendStolenSMS::stop();
     }
   }
 
+  gsm_loop();
 
-  // check for sms battery stuff
-  if (!send_low_battery && bicycle.battery_percent < SMS_SEND_LOW_BATTERY_AT_PERCENT) {
-    send_low_battery = sms_send_low_battery();
-  }
-
-  if (send_low_battery && bicycle.battery_percent > SMS_SEND_LOW_BATTERY_AT_PERCENT + 5) {
-    send_low_battery = false;
-  }
-
-  int index_received_sms = sms.serial_message_received();
+  int index_received_sms = gsm_serial_message_received();
   if (index_received_sms >= 0) {
     // we received a single sms
     D_PRINT("SMS received at index ");
     D_PRINT(index_received_sms);
-    process_incoming_sms(index_received_sms);
+    StorySMSReceived::process(index_received_sms);
   }
-
-  if(has_gsm_listening_blocked || is_gsm_listing_busy){
+  /*
+  if (has_gsm_listening_blocked) {
     // Maybe notification from Serial did not work. In this case, we have to lookup the SIM message storage. Maybe
     // mutliple messages has to be parsed
-    is_gsm_listing_busy = true;
     // list all unread SMS
     String sms_indices = "";
     // list all unread messages
     int8_t num_sms = sms.list(sms_indices, true);
-    if(num_sms > 0){
+    if (num_sms > 0) {
       // process only a single SMS
       uint8_t start = 0;
       uint8_t end = sms_indices.indexOf(",", start);
       int sms_index = -1;
-      if(end >= 0){
+      if (end >= 0) {
         sms_index = sms_indices.substring(start, end).toInt();
       } else {
         sms_index = sms_indices.substring(start).toInt();
@@ -105,64 +321,58 @@ void loop_sim(Bicycle &bicycle) {
 
     } else {
       // (num_sms <= 0)
-      is_gsm_listing_busy = false;
 
     }
 
 
     sms.delete_sms_all_read();
     // After every GPS callback, we listen to GSM serial again. Thus the loss of information (SMS received notifition)
-    // can be countered 
+    // can be countered
     has_gsm_listening_blocked = false;
-  }
+  }*/
 
 }
 
-bool init_gsm(){
-  D_SIM_PRINT("sms initialization complete: ");
+bool init_gsm() {
+  /*D_SIM_PRINT("sms initialization complete: ");
   bool retVal = sms.initSMS(5);
 
-  if(!retVal){
+  if (!retVal) {
     D_SIM_PRINT("sms initialization failed: ");
-    enable_buzzer(100,3,50);
+    enable_buzzer(100, 3, 50);
     delay(1000);
   }
 
-  if(!sms.isSimInserted()){
+  if (!sms.isSimInserted()) {
     D_SIM_PRINTLN("No SIM-Kart found: ");
-    enable_buzzer(100,5,50);
+    enable_buzzer(100, 5, 50);
     delay(1000);
   }
-  
 
-  
+
+
   D_SIM_PRINTLN(retVal);
 
   bool is_registered = sms.isRegistered();
 
-  if(!is_registered) {
-    for(uint8_t i = 0; i < 4 && !sms.isRegistered(); ++i){
+  if (!is_registered) {
+    for (uint8_t i = 0; i < 4 && !sms.isRegistered(); ++i) {
       delay(2000);
       is_registered = sms.isRegistered();
     }
 
-    if(!is_registered){
+    if (!is_registered) {
       D_SIM_PRINTLN("No Registered in network: ");
-      enable_buzzer(100,4,50);
+      enable_buzzer(100, 4, 50);
     }
   }
-  
+
 
   D_SIM_PRINT("is Module Registered to Network?... ");
   D_SIM_PRINTLN(sms.isRegistered());
 
   D_SIM_PRINT("Signal Quality... ");
   D_SIM_PRINTLN(sms.signalQuality());
-  return retVal;
-}
-
-
-void trigger_acqurie_gps_and_send_stolen_sms() {
-
-  bicycle.set_gps_callback(sms_send_stolen_bicycle);
+  return retVal;*/
+  return false;
 }

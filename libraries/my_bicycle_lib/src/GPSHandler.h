@@ -19,6 +19,7 @@ class GPSHandler {
     GPSHandler(SoftwareSerial &s) : serial(s) {
       state = GPSState::GPS_IDLE;
       callback = NULL;
+      timer_id = TIMER_INVALID;
     }
 
     void init();

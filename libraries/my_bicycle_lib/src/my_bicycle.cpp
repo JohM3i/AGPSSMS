@@ -15,6 +15,11 @@ String bicycle_status_to_string(BICYCLE_STATUS status){
       return "UNKNOWN";
   }
 }
+  
+   Bicycle &Bicycle::getInstance(){
+     static Bicycle instance;
+     return instance;
+   }
 
 
     Bicycle::Bicycle() {

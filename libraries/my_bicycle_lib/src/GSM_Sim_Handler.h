@@ -1,6 +1,8 @@
 #ifndef __GSM_SIM_HANDLER__
 #define __GSM_SIM_HANDLER__
 
+#include <Arduino.h>
+
 // the state of the gsm module
 // sleep: the gsm module is inactive
 // wake_up: a time-based state, where the module goes from sleep mode to ready (SLEEP -> WAKE_UP -> READY)
@@ -12,7 +14,7 @@ enum class GSMModuleState {SLEEP, WAKE_UP, READY, BUSY};
 enum class GSMModuleResponseState {SUCCESS, TIMEOUT, UNKNOWN};
 
 // generic callback function when a command was send to the gsm module. 
-typedef void (*gsm_f)(String &response, GSMModuleResponseState &state);
+typedef void (*gsm_f)(String &response, GSMModuleResponseState state);
 
 enum class SMS_FOLDER {UNKNOWN, INCOMING, OUTGOING};
 enum class SMS_STATUS {UNKNOWN, UNREAD, READ, UNSENT, SENT};
@@ -25,7 +27,7 @@ struct SMSMessage{
 	String message;
 };
 
-void gsm_init_module(Stream &stream);
+void gsm_init_module(Stream *stream);
 
 GSMModuleState gsm_loop();
 
@@ -63,10 +65,10 @@ void gsm_queue_set_new_message_indication(gsm_f callback);
 
 
 // result can be evaluated using the function gsm_response_contains_OK in your callback
-void gsm_queue_set_charset(char *charset, gsm_f callback);
+void gsm_queue_set_charset(const String &charset, gsm_f callback);
 
 // Evaluate sending sms successful using gsm_send_sms_successful in your callback
-void gsm_queue_send_sms(String &number, String &message, gsm_f callback);
+void gsm_queue_send_sms(const String &number, const String &message, gsm_f callback);
 
 // The response of the call can be parsed into a more accessible format using gsm_parse_sms_message in your callback
 void gsm_queue_read_sms(unsigned int index, bool markRead, gsm_f callback);
@@ -96,7 +98,7 @@ int gsm_serial_message_received(String &serialRaw);
 bool gsm_parse_sms_message(SMSMessage &out_message, String &rawResponse);
 
 static inline bool gsm_response_contains_OK(const String &response) {
-  return response.indexOf("OK") > 1-;
+  return response.indexOf("OK") > -1;
 }
 
 static inline bool gsm_send_sms_successful(const String &response) {
