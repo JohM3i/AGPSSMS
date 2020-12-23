@@ -71,11 +71,7 @@
 
     void GPSHandler::wakeup() {
       // at this point, we don't have to do something
-      
-      #ifdef ARDUINO_DEBUG
-      D_GPS_PRINTLN("GPS call listen to software serial");
-      serial.listen();
-      #endif
+      serial.begin(9600);
       
       D_GPS_PRINTLN("Woke up GPS tracking");
     }
@@ -88,6 +84,7 @@
         callback(state, location_to_determine);  
       }
       callback = NULL;
+      serial.end();
 
       state = GPSState::GPS_IDLE;
     }
