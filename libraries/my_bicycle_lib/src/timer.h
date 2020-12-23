@@ -13,6 +13,8 @@
 
 #define TIME_CYCLE_SEND_STOLEN_SMS 1800000
 
+#define TIME_CYCLE_READ_STORAGE_SMS 600000
+
 //************* TIMER_INTERVALS IN MS END ************** //
 
 // the timer id

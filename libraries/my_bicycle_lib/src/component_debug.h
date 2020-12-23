@@ -5,6 +5,7 @@
 #define ARDUINO_DEBUG
 
 #define ARDUINO_DEBUG_SHOCK
+
 #define ARDUINO_DEBUG_GPS
 
 #define ARDUINO_DEBUG_BATTERY
@@ -92,7 +93,7 @@
 #if defined(ARDUINO_DEBUG_EEPROM)
  #define D_EEPROM_PRINT(text) D_PRINT(text)
  #define D_EEPROM_PRINTLN(text) D_PRINTLN(text)
- #define D_v_WRITE(text) D_WRITE(text)
+ #define D_EEPROM_WRITE(text) D_WRITE(text)
 #else
   #define D_EEPROM_PRINT(text)
   #define D_EEPROM_PRINTLN(text)

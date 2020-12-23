@@ -25,7 +25,7 @@ void loop_id_12_la() {
       // valide tag found
       // check in eeprom if we have already stored this tag
       String phone_Number;
-      if (ee_prom_find_phone_number_to_tag((uint8_t*) &aId, phone_Number)) {
+      if (ee_prom_find_phone_number_to_tag(aId, phone_Number)) {
         // found
         // if we had a possible pairing tag -> it is not valid anymore
        

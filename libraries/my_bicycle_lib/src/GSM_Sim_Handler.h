@@ -80,10 +80,10 @@ void gsm_queue_list_sms(bool onlyUnread, gsm_f callback);
 void gsm_queue_delete_sms(unsigned int index, gsm_f callback);
 
 // result can be evaluated using the function gsm_response_contains_OK in your callback
-void gsm_queue_delete_sms_all_read();
+void gsm_queue_delete_sms_all_read(gsm_f callback);
 
 // result can be evaluated using the function gsm_response_contains_OK in your callback
-void gsm_queue_delete_sms_all();
+void gsm_queue_delete_sms_all(gsm_f callback);
 
 // checks if the indicator of a received message lies inside the given string.
 // If a message found: returns the storage index >= 0

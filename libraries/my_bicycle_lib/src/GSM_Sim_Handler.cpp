@@ -3,7 +3,7 @@
 #include "component_debug.h"
 
 #define DEFAULT_TIME_OUT_READ_SERIAL	5000
-#define GSM_QUEUE_MAX_SIZE 4
+#define GSM_QUEUE_MAX_SIZE 8
 #define RESPONSE_BUFFER_RESERVE_MEMORY 255
 
 // an element of our queue

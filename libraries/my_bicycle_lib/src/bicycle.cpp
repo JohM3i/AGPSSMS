@@ -1,4 +1,4 @@
-#include "my_bicycle.h"
+#include "bicycle.h"
 
 
 String bicycle_status_to_string(BICYCLE_STATUS status){

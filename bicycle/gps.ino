@@ -9,12 +9,8 @@ GPSHandler gps_handler(gps_serial);
 void gps_callback_check_stolen(GPSState, GPSLocation *);
 
 
-
-
-bool has_gsm_listening_blocked;
 void init_gps() {
   gps_handler.init();
-  has_gsm_listening_blocked = false;
 }
 
 

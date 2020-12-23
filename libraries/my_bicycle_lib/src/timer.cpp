@@ -136,8 +136,7 @@ timer_t timer_arm(timeCycle_t aTime, timer_f aFnc, uint8_t aFromISR){
     t->expires = aTime;
     t->roundCount = t->expires / TIME_PERIOD_MILLIS;
     D_TIMER_PRINT("Timer arm: Set round count to ");
-    D_TIMER_PRINT(t->roundCount);
-    D_TIMER_PRINTLN("");
+    D_TIMER_PRINTLN(t->roundCount);
     
     // set the callback function
     t->callback = aFnc;

@@ -1,5 +1,5 @@
 #include "component_debug.h"
-#include "my_bicycle.h"
+#include "bicycle.h"
 #include "SoftwareSerial.h"
 #include "TinyGPS++.h"
 
@@ -88,11 +88,11 @@ void loop() {
   // after a cycle,
   if (bicycle.status_changed()) {
     bicycle.set_status_changed(false);
-    D_PRINT("Status has changed from ");
+    D_PRINT("Bicycle: Status has changed from ");
     D_PRINT(bicycle_status_to_string(bicycle.previous_status()));
     D_PRINT(" to ");
     D_PRINTLN(bicycle_status_to_string(bicycle.current_status()));
-    D_PRINT("current phone number: ");
+    D_PRINT("Bicycle: current phone number: ");
     D_PRINTLN(bicycle.phone_number);
 
     if (bicycle.current_status() == BICYCLE_STATUS::RESET) {
