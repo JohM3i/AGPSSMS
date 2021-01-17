@@ -1,6 +1,8 @@
 #include "GSM_Sim_Handler.h"
 #include "timer.h"
 #include "component_debug.h"
+#include "reg_status.h"
+
 
 #define DEFAULT_TIME_OUT_READ_SERIAL	5000
 #define GSM_QUEUE_MAX_SIZE 8
@@ -64,6 +66,7 @@ GSMModuleState gsm_loop() {
         // -> check if some workload is queued
         onRepeat = false;
         if (num_queued_elements <= 0) {
+          REG_STATUS &= ~(1 << SIM_AT_QUEUED);
           break;
         }
         // we have to communicate with the gsm module at the current index
@@ -376,6 +379,7 @@ void queue_element(const String &command, gsm_f callback, unsigned long max_resp
   element.command = command;
   element.callback = callback;
   num_queued_elements++;
+  REG_STATUS |= (1 << SIM_AT_QUEUED);
 }
 
 int indexOfRange(const String &src, const String &match, int from, int to){

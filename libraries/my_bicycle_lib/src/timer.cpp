@@ -4,6 +4,7 @@
 
 #include "MegaAvr20Mhz.h"
 #include "EveryTimerB.h"
+#include "reg_status.h"
 
 #define TIME_PERIOD_MILLIS 1000UL
 #define TIMER_PERIOD_MICROSEOND (TIME_PERIOD_MILLIS * 1000)
@@ -55,6 +56,10 @@ static void timer_free(MyTimer* aTimer) {
   cli();
   if(aTimer->status == TIMER_STATUS_EXPIRED){
     number_of_expired_timers--;
+    
+    if(number_of_expired_timers <= 0) {
+      REG_STATUS &= ~(1 << TIMER_EXPIRED);
+    }
   }
   aTimer->status = TIMER_STATUS_FREE;
   sei();
@@ -63,7 +68,7 @@ static void timer_free(MyTimer* aTimer) {
 void timer_notify(){
   if(number_of_expired_timers > 0) {
     // some timers are expired. Check them
-    for(uint8_t i = 0; i < MAX_TIMERS; i++) {
+    for(uint8_t i = 0; i < MAX_TIMERS; ++i) {
       MyTimer * t = &timers[i];
       D_TIMER_PRINT("Timer notify: Timer ");
       D_TIMER_PRINT(i);
@@ -84,6 +89,9 @@ void timer_notify(){
         D_TIMER_PRINT(i);
         D_TIMER_PRINTLN("");
         t->callback();
+        if(number_of_expired_timers <= 0) {
+          REG_STATUS &= ~(1 << TIMER_EXPIRED);
+        }
       }
     }
   } else {
@@ -107,7 +115,7 @@ timer_t timer_arm(timeCycle_t aTime, timer_f aFnc, uint8_t aFromISR){
     cli();
 
   // find a free timer
-  for(uint8_t i = 0; i< MAX_TIMERS; i++) {
+  for(uint8_t i = 0; i< MAX_TIMERS; ++i) {
     if(timers[i].status == TIMER_STATUS_FREE) {
       id = i;
       timers[i].status = TIMER_STATUS_RESERVED;
@@ -163,7 +171,7 @@ void timer_disarm(timer_t* aTimerId){
 
 void tick(){
   D_TIMER_PRINTLN(millis());
-  for(uint8_t i = 0; i < MAX_TIMERS; i++) {
+  for(uint8_t i = 0; i < MAX_TIMERS; ++i) {
     MyTimer * t = &timers[i];
     if( t->status == TIMER_STATUS_ARMED) {
        // reduce timer clock count
@@ -171,7 +179,8 @@ void tick(){
        if(t->roundCount <= 0){
           D_TIMER_PRINTLN("Tick: A timer expired.");
           t->status = TIMER_STATUS_EXPIRED;
-          number_of_expired_timers++;
+          ++number_of_expired_timers;
+          REG_STATUS |= (1 << TIMER_EXPIRED);
        }
     }
   }

@@ -207,12 +207,6 @@ struct InitializeGSMModule {
 
     numTries = 5;
     gsm_queue_set_text_mode(true, setTextModeCallback);
-
-    // initialization methods:
-    // setTextMode(true)
-    // setPreferredSMSStorage
-    // setNewMessageIndication
-    // setCharset
   }
 
   static void setTextModeCallback(String &response, GSMModuleResponseState state) {
@@ -340,39 +334,8 @@ void loop_sim() {
     D_PRINT(index_received_sms);
     StorySMSReceived::process(index_received_sms);
   }
-  /*
-    if (has_gsm_listening_blocked) {
-    // Maybe notification from Serial did not work. In this case, we have to lookup the SIM message storage. Maybe
-    // mutliple messages has to be parsed
-    // list all unread SMS
-    String sms_indices = "";
-    // list all unread messages
-    int8_t num_sms = sms.list(sms_indices, true);
-    if (num_sms > 0) {
-      // process only a single SMS
-      uint8_t start = 0;
-      uint8_t end = sms_indices.indexOf(",", start);
-      int sms_index = -1;
-      if (end >= 0) {
-        sms_index = sms_indices.substring(start, end).toInt();
-      } else {
-        sms_index = sms_indices.substring(start).toInt();
-      }
 
-      process_incoming_sms(sms_index);
-
-    } else {
-      // (num_sms <= 0)
-
-    }
-
-
-    sms.delete_sms_all_read();
-    // After every GPS callback, we listen to GSM serial again. Thus the loss of information (SMS received notifition)
-    // can be countered
-    has_gsm_listening_blocked = false;
-    }*/
-
+  REG_STATUS &= ~(1 << LOOP_SIM);
 }
 
 bool init_gsm() {

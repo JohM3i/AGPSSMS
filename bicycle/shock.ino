@@ -44,6 +44,8 @@ void gps_callback_check_stolen(GPSState gpsState, GPSLocation * /* not needed */
   
     if(gpsState == GPSState::GPS_SUCCESS && bicycle.current_status() == BICYCLE_STATUS::LOCKED && is_bicylce_stolen()){
       bicycle.setStatus(BICYCLE_STATUS::STOLEN);
+
+      REG_STATUS |= (1 << LOOP_SIM);
     } else if(bicycle.current_status() == BICYCLE_STATUS::LOCKED) {
       // remain in current state -> LOCKED
       set_shock_sensor_enabled(true);

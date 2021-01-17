@@ -1,20 +1,18 @@
 #include "shock_sensor.h"
 #include "component_debug.h"
 #include <Arduino.h>
-
+#include "reg_status.h"
 #define SHOCK_SENSOR_INTERRUPT_PIN 5
 #define SHOCK_SENSOR_PWR_PIN 4
 
-volatile bool shock_registered;
-
-
 void shock_sensor_isr(){
-  shock_registered = true;
+  REG_STATUS |= (1 << SHOCK_REGISTERED);
 }
 
 void shock_sensor_init(){
   // use a digital pin as power output
-  shock_registered = false;
+  REG_STATUS &= ~(1 << SHOCK_REGISTERED);
+
   pinMode(SHOCK_SENSOR_PWR_PIN, OUTPUT);
   digitalWrite(SHOCK_SENSOR_PWR_PIN, LOW);
 }
@@ -30,13 +28,14 @@ void set_shock_sensor_enabled(bool enabled){
   } else {
     // detach the interrupt for the shock sensor
     detachInterrupt(digitalPinToInterrupt(SHOCK_SENSOR_INTERRUPT_PIN));
-    shock_registered = false;
+    REG_STATUS &= ~(1 << SHOCK_REGISTERED);
+
   }
 }
 
 
 bool is_shock_registered(){
-  return shock_registered;
+  return (REG_STATUS & (1 << SHOCK_REGISTERED)) > 0;
 }
 
 

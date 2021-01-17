@@ -2,7 +2,7 @@
 
 #include <Arduino.h>
 #include <avr/interrupt.h>
-
+#include "reg_status.h"
 
 #define PIN_CP  7
 #define PIN_CLK 8
@@ -31,7 +31,7 @@ static volatile uint8_t dataByte;
 static volatile bool has_rfid_rx;
 
 bool has_rfid_data_available(){
-  return has_rfid_rx;
+  return (REG_STATUS & (1<<HAS_RFID_RX)) > 0;
 }
 
 //clock interrupt
@@ -63,7 +63,7 @@ void isr_cp (void)
   if(digitalRead(PIN_CP) == HIGH) {
     //rising edge
     DISABLE_CLOCK_INT();
-    has_rfid_rx = true;    
+    REG_STATUS |= (1<<HAS_RFID_RX);
     DISABLE_CP_INT();
   }
   else {
@@ -174,8 +174,8 @@ uint8_t rfid_get(Rfid_Tag* aId)
   }
   
   
-  //REG_STATUS &= ~(1<<HAS_RFID_RX);
-  has_rfid_rx = false;
+  REG_STATUS &= ~(1<<HAS_RFID_RX);
+  
   rfid_reset();
 
   return result;

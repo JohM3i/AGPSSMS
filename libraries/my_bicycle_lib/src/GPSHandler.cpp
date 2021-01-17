@@ -1,5 +1,6 @@
 #include "GPSHandler.h"
 #include "component_debug.h"
+#include "reg_status.h"
 
     void GPSHandler::init() {
       serial.begin(9600);
@@ -10,6 +11,7 @@
       location_to_determine = location;
       state = GPSState::GPS_START;
       callback = gps_callback;
+      REG_STATUS |= (1 << LOOP_GPS);
     }
 
     void GPSHandler::read_timed_out() {
@@ -72,7 +74,6 @@
     void GPSHandler::wakeup() {
       // at this point, we don't have to do something
       serial.begin(9600);
-      
       D_GPS_PRINTLN("Woke up GPS tracking");
     }
 
@@ -87,5 +88,6 @@
       serial.end();
 
       state = GPSState::GPS_IDLE;
+      REG_STATUS &= ~(1 << LOOP_GPS);
     }
 

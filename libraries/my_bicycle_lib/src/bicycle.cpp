@@ -1,5 +1,5 @@
 #include "bicycle.h"
-
+#include "reg_status.h"
 
 String bicycle_status_to_string(BICYCLE_STATUS status){
   switch (status){
@@ -75,9 +75,12 @@ String bicycle_status_to_string(BICYCLE_STATUS status){
     gps_f Bicycle::pop_gps_callback(){
       gps_f retVal = _gps_callback;
       _gps_callback = NULL;
+      
+      REG_STATUS &= ~(1 << HAS_GPS_REQUEST);
       return retVal;
     }
 
     void Bicycle::set_gps_callback(gps_f aFnc){
       _gps_callback = aFnc;
+      REG_STATUS |= (1 << HAS_GPS_REQUEST);
     }
