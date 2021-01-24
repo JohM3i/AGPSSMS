@@ -9,16 +9,16 @@ SoftwareSerial mySerial(SMS_RX,SMS_TX);
 
 void setup()
 {
-  mySerial.begin(9600);
+  Serial1.begin(9600);
   Serial.begin(9600);
   Serial.println("Initializing...");
   delay(1000);
 
-  mySerial.println("AT");                 // Sends an ATTENTION command, reply should be OK
+  Serial1.println("AT");                 // Sends an ATTENTION command, reply should be OK
   updateSerial();
-  mySerial.println("AT+CMGF=1");          // Configuration for sending SMS
+  Serial1.println("AT+CMGF=1");          // Configuration for sending SMS
   updateSerial();
-  mySerial.println("AT+CNMI=1,2,0,0,0");  // Configuration for receiving SMS
+  Serial1.println("AT+CNMI=1,2,0,0,0");  // Configuration for receiving SMS
   updateSerial();
   Serial.println("Initialization complete");
 }
@@ -41,14 +41,14 @@ void updateSerial()
  
     if(cmd!=""){
       cmd.trim();  // Remove added LF in transmit
-      mySerial.print(cmd);
-      mySerial.println("");
+      Serial1.print(cmd);
+      Serial1.println("");
       
     }
   }
   
-  while(mySerial.available()) 
+  while(Serial1.available()) 
   {
-    Serial.write(mySerial.read());//Forward what Software Serial received to Serial Port
+    Serial.write(Serial1.read());//Forward what Software Serial received to Serial Port
   }
 }

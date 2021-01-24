@@ -77,11 +77,11 @@ class StorySMSReceived {
       return SIM_COMMAND::UNKNOWN;
     }
 
-    static void callbackReadSMS(String &response, GSMModuleResponseState state) {
-      SMSMessage message;
-      if (!gsm_parse_sms_message(message, response)) {
+    static void callbackReadSMS(SMSMessage &message, bool parseSuccessful) {
+      SMSDeleteGuard deleteSMS(current_sms_index, callbackDeleteSMS);
+      
+      if (!parseSuccessful) {
         // reading sms failed
-        gsm_queue_delete_sms(current_sms_index, callbackDeleteSMS);
         return;
       }
 
@@ -123,7 +123,6 @@ class StorySMSReceived {
           phone_number += Bicycle::getInstance().phone_number;
         } else if (!ee_prom_give_me_a_phone_number(phone_number)) {
           D_SIM_PRINTLN("SMS forward: No phone number in eeprom found");
-          gsm_queue_delete_sms(current_sms_index, callbackDeleteSMS);
           return;
         }
 
@@ -133,7 +132,6 @@ class StorySMSReceived {
 
         gsm_queue_send_sms(phone_number, message_to_send, callbackSendSMS);
       }
-      gsm_queue_delete_sms(current_sms_index, callbackDeleteSMS);
     }
 
     static void gps_callback_sms_send_status(GPSState state, GPSLocation *location) {
@@ -197,6 +195,44 @@ class StorySMSReceived {
 String StorySMSReceived::status_command_sender_phone_number = "";
 unsigned int StorySMSReceived::current_sms_index = 0;
 
+struct StoryCheckSMSStorage {
+
+  static void start() {
+    timer_id = timer_arm(TIME_CYCLE_READ_STORAGE_SMS, timer_callback);
+  }
+
+  static void timer_callback() {
+    // list only unread sms
+    gsm_queue_list_sms(true, listSMSCallback);
+  }
+
+  static void listSMSCallback(String &response, GSMModuleResponseState state) {
+    if (response.length() > 0) {
+      D_SIM_PRINTLN("SIM process sms storage list: " + response);
+      uint8_t start = 0;
+      uint8_t end = response.indexOf(",", start);
+      int sms_index = -1;
+
+      if (end < 0) {
+        sms_index = response.substring(start).toInt();
+      } else {
+        sms_index = response.substring(start, end).toInt();
+      }
+      if (sms_index >= 0) {
+        StorySMSReceived::process(sms_index);
+      }
+      gsm_queue_delete_sms_all_read(deleteSMSReadCallback);
+    }
+  }
+
+  static void deleteSMSReadCallback(String &response, GSMModuleResponseState state) {
+    // for now - nothing to do here
+  }
+
+  static timer_t timer_id;
+};
+
+timer_t StoryCheckSMSStorage::timer_id = TIMER_INVALID;
 
 struct InitializeGSMModule {
 
@@ -250,6 +286,10 @@ struct InitializeGSMModule {
       --numTries;
       String charset = "IRA";
       gsm_queue_set_charset(charset, setCharsetCallback);
+    } else {
+      // we initialized gsm module successfully
+      enable_buzzer(200);
+      StoryCheckSMSStorage::start();
     }
     D_SIM_PRINT(numTries);
     D_SIM_PRINTLN(" left");
@@ -260,51 +300,11 @@ struct InitializeGSMModule {
 byte InitializeGSMModule::numTries = 0;
 
 
-struct StoryCheckSMSStorage {
-
-  static void start() {
-    timer_id = timer_arm(TIME_CYCLE_READ_STORAGE_SMS, timer_callback);
-  }
-
-  static void timer_callback() {
-    // list only unread sms
-    gsm_queue_list_sms(true, listSMSCallback);
-  }
-
-  static void listSMSCallback(String &response, GSMModuleResponseState state) {
-    if (response.length() > 0) {
-      D_SIM_PRINTLN("SIM process sms storage list: " + response);
-      uint8_t start = 0;
-      uint8_t end = response.indexOf(",", start);
-      int sms_index = -1;
-
-      if (end < 0) {
-        sms_index = response.substring(start).toInt();
-      } else {
-        sms_index = response.substring(start, end).toInt();
-      }
-      if (sms_index >= 0) {
-        StorySMSReceived::process(sms_index);
-      }
-      gsm_queue_delete_sms_all_read(deleteSMSReadCallback);
-    }
-  }
-
-  static void deleteSMSReadCallback(String &response, GSMModuleResponseState state) {
-    // for now - nothing to do here
-  }
-
-  static timer_t timer_id;
-};
-
-timer_t StoryCheckSMSStorage::timer_id = TIMER_INVALID;
 
 void init_sim() {
   Serial1.begin(9600);
 
   InitializeGSMModule::initialize(&Serial1);
-
-  StoryCheckSMSStorage::start();
 }
 
 void loop_sim() {

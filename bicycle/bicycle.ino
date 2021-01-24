@@ -4,12 +4,14 @@
 #include "TinyGPS++.h"
 
 //#include "GSM_Sim_SMS.h"
-#include "GSM_Sim_Handler.h"
+
 #include "timer.h"
 #include "ee_prom.h"
 #include "rfid.h"
+#include "buzzer.h"
 #include "shock_sensor.h"
 #include "reg_status.h"
+#include "GSM_Sim_Handler.h"
 
 //********************* VARIABLES ********************** //
 #define GPS_DISTANCE_TO_STOLEN_IN_METERS 20
@@ -21,10 +23,8 @@
 
 //************ FORWARD DECLARATIONS - Methods ************ //
 // init and loop methods of different files
-void enable_buzzer(unsigned int ms_sound, unsigned int repeat = 1, unsigned int delay_ms = 0);
 #define FILE_FORWARD(file) void init_file(); void loop_file();
 
-FILE_FORWARD(buzzer);
 FILE_FORWARD(gps);
 FILE_FORWARD(id_12_la);
 FILE_FORWARD(shock);
@@ -67,7 +67,6 @@ void setup() {
   D_PRINTLN("Init rfid");
   init_id_12_la();
   D_PRINTLN("Initialization end");
-  enable_buzzer(1000);
 
   D_PRINTLN("Status register after initialization: " + String(REG_STATUS, BIN));
 }

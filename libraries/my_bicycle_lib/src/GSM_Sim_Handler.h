@@ -16,6 +16,8 @@ enum class GSMModuleResponseState {SUCCESS, TIMEOUT, UNKNOWN};
 // generic callback function when a command was send to the gsm module. 
 typedef void (*gsm_f)(String &response, GSMModuleResponseState state);
 
+
+
 enum class SMS_FOLDER {UNKNOWN, INCOMING, OUTGOING};
 enum class SMS_STATUS {UNKNOWN, UNREAD, READ, UNSENT, SENT};
 
@@ -26,6 +28,8 @@ struct SMSMessage{
 	String date_time;
 	String message;
 };
+
+typedef void (*r_sms_f)(SMSMessage &message, bool success);
 
 void gsm_init_module(Stream *stream);
 
@@ -71,7 +75,7 @@ void gsm_queue_set_charset(const String &charset, gsm_f callback);
 void gsm_queue_send_sms(const String &number, const String &message, gsm_f callback);
 
 // The response of the call can be parsed into a more accessible format using gsm_parse_sms_message in your callback
-void gsm_queue_read_sms(unsigned int index, bool markRead, gsm_f callback);
+void gsm_queue_read_sms(unsigned int index, bool markRead, r_sms_f callback);
 
 // response contains list with the indices as String
 void gsm_queue_list_sms(bool onlyUnread, gsm_f callback);
@@ -140,5 +144,21 @@ static inline unsigned int gsm_parse_phone_status(const String &response) {
 void gsm_wakeup();
 
 void gsm_tear_down();
+
+class SMSDeleteGuard {
+public:
+  explicit SMSDeleteGuard(unsigned int index, gsm_f callback):index_(index), callback_(callback){}
+  
+  ~SMSDeleteGuard(){
+    gsm_queue_delete_sms(index_, callback_);
+  }
+
+private:
+  SMSDeleteGuard &operator=(const SMSDeleteGuard&) = delete;
+  SMSDeleteGuard(const SMSDeleteGuard&) = delete;
+  
+  unsigned int index_;
+  gsm_f callback_;
+};
 
 #endif
