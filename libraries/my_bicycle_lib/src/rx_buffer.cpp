@@ -5,15 +5,27 @@ static int indexOfRange(const String &src, const String &match, int from, int to
 static void parseSMSHeader(SMSMessage &out_message, int index_header_start, int index_header_end, String &buffer);
 
 
+void Buffer::read_from_stream(Stream *stream) {
+  if(start == end){
+    start = data;
+    end = start;
+  }
+  
+  while(stream->available()) {
+    *end = stream->read();
+    ++end;
+  }
+}
+
 
 int Abstract_RX_Buffer_Reader::try_catch(char * start, char * end, unsigned int &match_index, const String &catchable) {
   char * beginning = start;
    
   while(start != end && match_index < catchable.length()) {
-    if(*start == catchable_.charAt(match_index)) {
-      matchIndex++;
+    if(*start == catchable.charAt(match_index)) {
+      match_index++;
     } else {
-      matchIndex = 0;
+      match_index = 0;
     }
     ++start;
   }
@@ -44,7 +56,7 @@ bool CMTI_Buffer_Reader::is_read_body_done(char *& start, char * end) {
         retVal = true;
         break;
       }
-      sms_index = sms_index * 10 + String(*start).toInt();
+      sms_index_ = sms_index_ * 10 + String(*start).toInt();
       ++start;  
     }
   }
@@ -58,13 +70,13 @@ void CMTI_Buffer_Reader::fire_callback(bool success) {
 
 
 bool SignalQualityReader::is_read_body_done(char *& start, char * end) {
-  return signal_quality_.store_till(start, end) && advance_to_OK_.advance_till(start, end);
+  return signal_quality_.store_till(start, end) && advance_to_OK_.advanced_till(start, end);
 }
 
 void SignalQualityReader::fire_callback(bool success) {
   if(callback_) {
     if(success) {
-      callback_(success, signal_quality.data.substring(0, signal_quality.data.length()-1).toInt());
+      callback_(success, signal_quality_.data.substring(0, signal_quality_.data.length()-1).toInt());
     } else {
       callback_(false, 99);
     }
@@ -75,32 +87,31 @@ void SignalQualityReader::fire_callback(bool success) {
 
 
 bool IsRegisteredReader::is_read_body_done(char *& start, char * end) {
-  return sim_inserted.store_till(start, end) && advance_to_OK_.advance_till(start, end);
+  return sim_inserted_.store_till(start, end) && advance_to_OK_.advanced_till(start, end);
 }
 
 void IsRegisteredReader::fire_callback(bool success) {
-  // TODO:
   if(callback_) {
     if(success) {
-      callback_(sim_inserted.data == "0,1" || sim_inserted.data == "0,5" || sim_inserted.data == "1,1" || sim_inserted.data == "1,5");
+      callback_(sim_inserted_.data == "0,1" || sim_inserted_.data == "0,5" || sim_inserted_.data == "1,1" || sim_inserted_.data == "1,5");
     } else {
       callback_(false);
     }
   }
-  sim_inserted.reset();
+  sim_inserted_.reset();
   advance_to_OK_.reset();
 }
 
 
 
 bool IsSimInsertedReader::is_read_body_done(char *& start, char * end) {
-  return advance_comma_.advanced_till(start,end) && store_till_OK_(start, end);
+  return advance_comma_.advanced_till(start,end) && store_till_OK_.store_till(start, end);
 }
 
 void IsSimInsertedReader::fire_callback(bool success) {
   if(callback_){
     if(success) {
-      store_till_OK_.data = store_till_OK_.data.substring(0, storestore_till_OK_.data.length() - 2);
+      store_till_OK_.data = store_till_OK_.data.substring(0, store_till_OK_.data.length() - 2);
       store_till_OK_.data.trim();
       
       callback_(store_till_OK_.data == "1");
@@ -121,7 +132,7 @@ bool PhoneStatusReader::is_read_body_done(char *& start, char * end) {
 void PhoneStatusReader::fire_callback(bool success) {
   if(callback_){
     if(success){
-      callback(success,phone_status_.data.toInt());
+      callback_(success,phone_status_.data.toInt());
     } else {
       callback_(false, 99);
     }
@@ -141,9 +152,9 @@ void ReadSMSReader::fire_callback(bool success) {
   
   if(callback_){
     if(success) {
-      parseSMSHeader(out_message, 1, header_.data.length() - 2, header.data) {
+      parseSMSHeader(out_message, 1, header_.data.length() - 2, header_.data);
       
-      out_message.message = body_.data.substring(0, body_.data_.lastIndexOf("OK"));
+      out_message.message = body_.data.substring(0, body_.data.lastIndexOf("OK"));
       out_message.message.trim();
       
       callback_(success, out_message);
@@ -153,8 +164,8 @@ void ReadSMSReader::fire_callback(bool success) {
   }
 }
 
-int try_catch(char *start, char *end) {
-  int try_ok = Abstract_RX_Buffer_Reader::try_catch(start, end) >= 0
+int ListSMSReader::try_catch(char *start, char *end) {
+  int try_ok = Abstract_RX_Buffer_Reader::try_catch(start, end);
   catched_OK = try_ok >= 0;
   if(catched_OK){
     return try_ok;
@@ -164,7 +175,7 @@ int try_catch(char *start, char *end) {
   
 }
 
-bool is_read_body_done(char *&start, char * end) {
+bool ListSMSReader::is_read_body_done(char *&start, char * end) {
   if(catched_OK) {
     return true;
   }
@@ -173,13 +184,13 @@ bool is_read_body_done(char *&start, char * end) {
   return cmgl_index_.store_till(start,end) && advance_cmgl_end.advanced_till(start, end);
   
 }
-void fire_callback(bool success) {
+void ListSMSReader::fire_callback(bool success) {
   if(callback_) {
     callback_(success, data);
   }
 }
   
-bool is_repeatable() {
+bool ListSMSReader::is_repeatable() {
   // 
 
   // Reset class expect data_list
@@ -187,8 +198,8 @@ bool is_repeatable() {
   catch_index_cmgl = 0;
   match_index_ = 0;
   
-  if(!data.empty()) {
-    data += ","
+  if(data.length() <= 0 ) {
+    data += ",";
   }
 
   data += cmgl_index_.data.substring(0, cmgl_index_.data.length() -1);
@@ -197,7 +208,7 @@ bool is_repeatable() {
   advance_cmgl_end.reset();
   
   // when we catched a ok statement, then the list command is completetly processed
-  return !catched_ok;
+  return !catched_OK;
 }
 
 

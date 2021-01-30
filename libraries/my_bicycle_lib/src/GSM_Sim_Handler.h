@@ -95,47 +95,10 @@ void gsm_queue_delete_sms_all(gsm_success callback);
 // If no message found: returns -1
 int gsm_serial_message_received();
 
-bool gsm_parse_sms_message(SMSMessage &out_message, String &rawResponse);
-
-static inline bool gsm_response_contains_OK(const String &response) {
-  return response.indexOf("OK") > -1;
-}
-
 static inline bool gsm_send_sms_successful(const String &response) {
   return response.indexOf("+CMGS:") > -1;
 }
 
-static inline int gsm_parse_signal_quality(const String &response) {
-  if((response.indexOf(F("+CSQ:"))) > -1) {
-    return response.substring(response.indexOf(F("+CSQ: "))+6, response.indexOf(F(","))).toInt();
-  } else {
-    return 99;
-  }
-}
-
-static inline bool gsm_parse_is_registered(const String &response) {
-  if( (response.indexOf(F("+CREG: 0,1"))) > -1 || (response.indexOf(F("+CREG: 0,5"))) > -1 || (response.indexOf(F("+CREG: 1,1"))) > -1 || (response.indexOf(F("+CREG: 1,5"))) > -1) {
-    return true;
-  } 
-  return false;
-}
-
-static inline bool gsm_parse_is_sim_inserted(const String &response) {
-  if(response.indexOf(",") > -1) {		
-    String veri = response.substring(response.indexOf(F(","))+1, response.indexOf(F("OK")));
-    veri.trim();
-    //return veri;
-    return veri == "1";
-  }
-  return false;
-}
-
-static inline unsigned int gsm_parse_phone_status(const String &response) {
-  if((response.indexOf("+CPAS: ")) > -1) {
-    return response.substring(response.indexOf(F("+CPAS: ")) + 7, response.indexOf(F("+CPAS: ")) + 9).toInt();
-  }
-  return 99;
-}
 
 void gsm_wakeup();
 

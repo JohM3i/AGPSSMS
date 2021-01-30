@@ -1,13 +1,18 @@
+#ifndef RX_BUFFER_HELPER_H
+#define RX_BUFFER_HELPER_H
+
+#include <Arduino.h>
+
 struct AdvanceInclusiveTill {
 
-  explicit AdvanceInclusiveTill(const String &str) : index_(0), delimiter_(str) {
+  explicit AdvanceInclusiveTill(String str) : index_(0), delimiter_(str) {
   
   }
 
   bool advanced_till(char *& start, char *end) {
     while(start != end && index_ < delimiter_.length()) {
       if(*start == delimiter_.charAt(index_)){
-        ++index;
+        ++index_;
       } else {
         reset();
       }
@@ -22,22 +27,22 @@ struct AdvanceInclusiveTill {
   
   unsigned int index_;
   String delimiter_;
-}
+};
 
 
 struct StoreAsStringInclusiveTill {
   
-  explicit StoreAsStringExclusiveTill(const String &str) : data(""), delimiter_index_(0), delimiter_(str) {
+  explicit StoreAsStringInclusiveTill(String str) : data(""), delimiter_index_(0), delimiter_(str) {
   
   }
   
   bool store_till(char *& start, char *end) {
-    while(start != end && index_ < delimiter_.length()) {
+    while(start != end && delimiter_index_ < delimiter_.length()) {
       data += *start;
-      if(*start == delimiter_.charAt(index_)){
-        ++index;
+      if(*start == delimiter_.charAt(delimiter_index_)){
+        ++delimiter_index_;
       } else {
-        index = 0;
+        delimiter_index_ = 0;
       }
     }
     
@@ -54,13 +59,13 @@ struct StoreAsStringInclusiveTill {
   
   unsigned int delimiter_index_;
   String delimiter_;
-}
+};
 
 template<int SIZE>
 struct StoreAsStringFixSize {
 
-  StoreAsStringFixSize() : count(0), value("") {
-    value.reserve(SIZE);
+  StoreAsStringFixSize() : count(0), data("") {
+    data.reserve(SIZE);
   }
 
   bool store_till(char *&start, char *end) {
@@ -76,6 +81,6 @@ struct StoreAsStringFixSize {
   }
   unsigned int count;
   String data;
-}
+};
 
-
+#endif
