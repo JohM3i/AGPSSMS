@@ -1,14 +1,24 @@
 #include "rx_buffer.h"
+#include "component_debug.h"
+
 
 static int indexOfRange(const String &src, const String &match, int from, int to);
 
 static void parseSMSHeader(SMSMessage &out_message, int index_header_start, int index_header_end, String &buffer);
 
 
+static void debug_print_rx(char *start, char *end) {
+  while(start != end) {
+    D_SIM_PRINT(*start);
+    ++start;
+  }
+
+}
+
+
 void Buffer::read_from_stream(Stream *stream) {
   if(start == end){
-    start = data;
-    end = start;
+    reset();
   }
   
   while(stream->available()) {
@@ -16,6 +26,28 @@ void Buffer::read_from_stream(Stream *stream) {
     ++end;
   }
 }
+
+void Buffer::advance_white_space() {
+  while(start != end && isWhitespace(*start)) {
+   ++start;
+  }
+  if(start == end) {
+    reset();
+  }
+}
+
+void Buffer::reset() {
+  start = data;
+  end = start;
+}
+
+Buffer buffer;
+
+Buffer &get_buffer() {
+  return buffer;
+}
+
+
 
 
 int Abstract_RX_Buffer_Reader::try_catch(char * start, char * end, unsigned int &match_index, const String &catchable) {
@@ -53,6 +85,7 @@ bool CMTI_Buffer_Reader::is_read_body_done(char *& start, char * end) {
   if(komma_.advanced_till(start, end)){
     while(start != end) {
       if(!isDigit(*start)) {
+        has_sms_index_ = true;
         retVal = true;
         break;
       }
@@ -66,6 +99,35 @@ bool CMTI_Buffer_Reader::is_read_body_done(char *& start, char * end) {
 
 void CMTI_Buffer_Reader::fire_callback(bool success) {
   // there is no callback
+}
+
+bool CMTI_Buffer_Reader::has_catched() {
+  // can be computed inline
+  
+  // it is processing if it is catching something or processing the body
+  return match_index_ >= catchable_.length();
+}
+
+bool CMTI_Buffer_Reader::has_sms_index() {
+  return has_sms_index_;
+}
+
+unsigned int CMTI_Buffer_Reader::pop_index() {
+  auto retVal = sms_index_;
+  reset();
+  return retVal;
+}
+
+
+void CMTI_Buffer_Reader::reset() {
+  // reset catcher
+  match_index_ = 0;
+  
+  
+  komma_.reset();
+  // reset data
+  sms_index_ = 0;
+  has_sms_index_ = false;
 }
 
 
@@ -87,18 +149,18 @@ void SignalQualityReader::fire_callback(bool success) {
 
 
 bool IsRegisteredReader::is_read_body_done(char *& start, char * end) {
-  return sim_inserted_.store_till(start, end) && advance_to_OK_.advanced_till(start, end);
+  return is_registered_.store_till(start, end) && advance_to_OK_.advanced_till(start, end);
 }
 
 void IsRegisteredReader::fire_callback(bool success) {
   if(callback_) {
     if(success) {
-      callback_(sim_inserted_.data == "0,1" || sim_inserted_.data == "0,5" || sim_inserted_.data == "1,1" || sim_inserted_.data == "1,5");
+      callback_(is_registered_.data == "0,1" || is_registered_.data == "0,5" || is_registered_.data == "1,1" || is_registered_.data == "1,5");
     } else {
       callback_(false);
     }
   }
-  sim_inserted_.reset();
+  is_registered_.reset();
   advance_to_OK_.reset();
 }
 
@@ -138,6 +200,29 @@ void PhoneStatusReader::fire_callback(bool success) {
     }
   }  
 }
+
+bool SendSMSReader::is_read_body_done(char *& start, char * end) {
+  return advance_to_OK_.advanced_till(start,end);
+}
+
+void SendSMSReader::fire_callback(bool success) {
+  if(callback_) {
+    callback_(success);
+  }
+}
+
+bool SetPreferredSMSStorageReader::is_read_body_done(char *& start, char * end) {
+  //debug_print_rx(start, end);
+ 
+  return advance_to_OK_.advanced_till(start,end);
+}
+
+void SetPreferredSMSStorageReader::fire_callback(bool success) {
+  if(callback_) {
+    callback_(success);
+  }
+}
+
 
 
 bool ReadSMSReader::is_read_body_done(char *& start, char * end) {

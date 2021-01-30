@@ -13,6 +13,10 @@
 // an element of our queue
 struct Q_element {
 
+  Q_element() {
+    clear();
+  }
+
   void clear() {
     command = "";
     delete reader;
@@ -34,8 +38,9 @@ unsigned int num_queued_elements = 0;
 GSMModuleState moduleState;
 GSMModuleResponseState responseState;
 
-Abstract_RX_Buffer_Reader * current_reader = nullptr;
 
+Abstract_RX_Buffer_Reader * current_reader = nullptr;
+CMTI_Buffer_Reader default_reader;
 
 Stream *gsm = nullptr;
 timer_t timer_id = TIMER_INVALID;
@@ -45,6 +50,8 @@ static void command_timed_out();
 static void armTimeoutTimer(unsigned long max_response_time);
 static void disarmTimer();
 static void queue_element(const String &command, Abstract_RX_Buffer_Reader *reader, unsigned long max_response_time = DEFAULT_TIME_OUT_READ_SERIAL);
+static inline bool is_gsm_response_busy();
+static inline void default_reader_handle_gsm_response();
 
 
 void gsm_init_module(Stream *stream) {
@@ -71,6 +78,24 @@ GSMModuleState gsm_loop() {
           REG_STATUS &= ~(1 << SIM_AT_QUEUED);
           break;
         }
+        
+        if(is_gsm_response_busy()){
+        /*
+          D_SIM_PRINTLN("RX_buffer is busy ... content:");
+          
+          // TODO: ---------- remove debug purposes
+          char* start =get_buffer().start;
+          char* end = get_buffer().end;
+          while(start != end) {
+            D_SIM_PRINT((char) *start);
+            ++start;
+          }
+          D_SIM_PRINTLN("");
+          */ //---------- debug purposes end
+          default_reader_handle_gsm_response();
+          break;
+        }
+        
         // we have to communicate with the gsm module at the current index
         auto &element = queue[current_index];
         D_SIM_PRINTLN("GSM execute command " + element.command);
@@ -78,12 +103,13 @@ GSMModuleState gsm_loop() {
         // start timeout timer
         responseState = GSMModuleResponseState::TRY_CATCH;
         current_reader = nullptr;
+        D_SIM_PRINTLN("GSM arm command timer ...");
         armTimeoutTimer(element.max_response_time);
         moduleState = GSMModuleState::BUSY;
       }
       case GSMModuleState::BUSY: {
-
-        rx_buffer.read_from_stream(gsm);
+        
+        get_buffer().read_from_stream(gsm);
         auto &element = queue[current_index];
         switch(responseState) {
           case GSMModuleResponseState::TRY_CATCH: {
@@ -91,35 +117,37 @@ GSMModuleState gsm_loop() {
            // -> determine current_reader
            
            bool curr_reader_found = false;
-           int default_advance = -1;
+           int default_advance = default_reader.try_catch(get_buffer().start, get_buffer().end);
            if(default_advance > 0) {
              // TODO: set default reader variable and try to catch it
-             current_reader = nullptr;
-             rx_buffer.start += default_advance;
+             current_reader = &default_reader;
+             get_buffer().start += default_advance;
              curr_reader_found = true;
            }
            
-           
-           int elem_advance = element.reader->try_catch(rx_buffer.start, rx_buffer.end);
+           int elem_advance = element.reader->try_catch(get_buffer().start, get_buffer().end);
            if(elem_advance > 0) {
              current_reader = element.reader;
-             rx_buffer.start += elem_advance;
+             get_buffer().start += elem_advance;
              curr_reader_found = true;
            }
            
-           if(curr_reader_found) {
+           if(!curr_reader_found) {
+             // avoid overflow of buffer - furthermore, we already processed this part of the buffer
+             get_buffer().reset();
              break;
            }
            responseState = GSMModuleResponseState::READING;
           }
-          case GSMModuleResponseState::READING: {
-            if(!current_reader->is_read_body_done(rx_buffer.start, rx_buffer.end)) {
+          case GSMModuleResponseState::READING: {          
+            if(!current_reader->is_read_body_done(get_buffer().start, get_buffer().end)) {
               // we are not done reading - stay in this state
               break;
             }
             // we are done with reading. Could this command occour more than once ?
             if(current_reader->is_repeatable()) {
               // repeat loop
+              D_SIM_PRINTLN("GSM READING: call onRepeat");
               onRepeat = true;
               // when it is repeatable, we have to try to catch the response command again
               responseState = GSMModuleResponseState::TRY_CATCH;
@@ -128,9 +156,11 @@ GSMModuleState gsm_loop() {
             responseState = GSMModuleResponseState::SUCCESS;
           }
           case GSMModuleResponseState::SUCCESS: {
+            D_SIM_PRINTLN("CALL SUCCESS");
             // check if the current_reader is the element reader or the default reader
             if(current_reader != element.reader && current_reader != nullptr) {
               // aww shit here we go again
+              D_SIM_PRINTLN("GSM SUCCESS: CMTI Stole everything");
               onRepeat = true;
               responseState = GSMModuleResponseState::TRY_CATCH;
   
@@ -152,6 +182,9 @@ GSMModuleState gsm_loop() {
             current_index = (current_index + 1) % GSM_QUEUE_MAX_SIZE;
             moduleState = GSMModuleState::READY;
             // repeat switch case in order to check for new workload
+            
+            
+            
             onRepeat = true;
             break;
           }
@@ -171,7 +204,8 @@ void gsm_queue_echo_off(gsm_success callback) {
 
 void gsm_queue_echo_on(gsm_success callback) {
   String command = "ATE1\r";
-  queue_element(command, new OK_Buffer_Reader(callback));
+  auto *reader = new OK_Buffer_Reader(callback);
+  queue_element(command, reader);
 }
 
 void gsm_queue_signal_quality(gsm_bool_int callback) {
@@ -208,9 +242,8 @@ void gsm_queue_set_text_mode(bool textModeOn, gsm_success callback) {
 }
 
 void gsm_queue_set_preferred_sms_storage(const String &mem1, const String &mem2, const String &mem3, gsm_success callback) {
-  //String command = "AT+CPMS=\"" + mem1 + "\",\"" + mem2 + "\",\"" + mem3 + "\"\r";
-  // TODO: implement me
-  //queue_element(command, new RX_Buffer_Reader<PreferredSMSStorageReader>(PreferredSMSStorageReader(callback)));
+  String command = "AT+CPMS=\"" + mem1 + "\",\"" + mem2 + "\",\"" + mem3 + "\"\r";
+  queue_element(command, new SetPreferredSMSStorageReader(callback));
 }
 
 void gsm_queue_set_new_message_indication(gsm_success callback) {
@@ -224,13 +257,13 @@ void gsm_queue_set_charset(const String &charset, gsm_success callback) {
 }
 
 void gsm_queue_send_sms(const String &number, const String &message, gsm_success callback) {
-  //String command = "AT+CMGS=\"";
-  //command += number;
-  //command += "\"\r";
-  //queue_element(command, new RX_Buffer_Reader<AlwaysDoneParser>(AlwaysDoneParser()));  
-  //queue_element(message, new RX_Buffer_Reader<AlwaysDoneParser>(AlwaysDoneParser()));
-  //command = (char) 26;  
-  //queue_element(command, new RX_Buffer_Reader<SendSMSResponseReader>(SendSMSResponseReader(callback)));
+  String command = "AT+CMGS=\"";
+  command += number;
+  command += "\"\r";
+  queue_element(command, new ReadNothingReader());  
+  queue_element(message, new ReadNothingReader());
+  command = (char) 26;  
+  queue_element(command, new SendSMSReader(callback));
 }
 
 void gsm_queue_read_sms(unsigned int index, bool markRead, gsm_bool_sms callback) {
@@ -266,11 +299,21 @@ void gsm_queue_delete_sms_all(gsm_success callback) {
 
 int gsm_serial_message_received() {
   //return default_reader.contained_cmti() ? default_reader.pop_index() : -1;
-  // TODO; implement me
+  
+  if(default_reader.has_sms_index()){
+    return default_reader.pop_index();
+  } else if(moduleState == GSMModuleState::READY && is_gsm_response_busy()) {
+    default_reader_handle_gsm_response();
+    // check again:
+    if(default_reader.has_sms_index()){
+      return default_reader.pop_index();
+    }
+  }
+  
   return -1;
 }
 
-static void wakeup_to_ready() {
+void wakeup_to_ready() {
   disarmTimer();
   moduleState = GSMModuleState::READY;
   D_SIM_PRINTLN("GSM module set state ready");
@@ -307,7 +350,7 @@ void queue_element(const String &command, Abstract_RX_Buffer_Reader *reader, uns
   auto queue_index = (current_index + num_queued_elements) % GSM_QUEUE_MAX_SIZE;
   D_SIM_PRINTLN("GSM command queued: " + command);
   auto &element = queue[queue_index];
-  if(!element.reader) {
+  if(element.reader == nullptr) {
     element.max_response_time = max_response_time;
     element.command = command;
     element.reader = reader;
@@ -318,4 +361,32 @@ void queue_element(const String &command, Abstract_RX_Buffer_Reader *reader, uns
     D_SIM_PRINTLN("GSM ERROR: Overflow on gsm queue !!!");
     delete reader;
   }
+  
+  delay(1000);
+}
+
+bool is_gsm_response_busy() {
+  get_buffer().read_from_stream(gsm);
+  return get_buffer().start != get_buffer().end;
+}
+
+void default_reader_handle_gsm_response() {
+  if(default_reader.has_sms_index()){
+    return;
+  }
+  
+  bool try_parse_body = default_reader.has_catched();
+  if(!try_parse_body){
+    int default_advance = default_reader.try_catch(get_buffer().start, get_buffer().end);
+    if(default_advance > 0) {
+      get_buffer().start += default_advance;
+      try_parse_body = true;
+    } else {
+      get_buffer().reset();
+    }
+  }
+  
+  if(try_parse_body){
+    default_reader.is_read_body_done(get_buffer().start, get_buffer().end);
+  } 
 }

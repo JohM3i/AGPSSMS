@@ -16,6 +16,7 @@ struct AdvanceInclusiveTill {
       } else {
         reset();
       }
+      ++start;
     }
     
     return index_ >= delimiter_.length();
@@ -44,6 +45,7 @@ struct StoreAsStringInclusiveTill {
       } else {
         delimiter_index_ = 0;
       }
+      ++start;
     }
     
     return delimiter_index_ >= delimiter_.length();
@@ -69,10 +71,12 @@ struct StoreAsStringFixSize {
   }
 
   bool store_till(char *&start, char *end) {
-    while(start != end && count < data.length()) {
+    while(start != end && count < SIZE) {
       data += *start;
-      ++start;    
+      ++start;
+      ++count;
     }
+    return count >= SIZE;
   }
 
   void reset() {

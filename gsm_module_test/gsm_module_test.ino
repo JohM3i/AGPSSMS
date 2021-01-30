@@ -1,10 +1,13 @@
+
+#include "reg_status.h"
+
+#include "timer.h"
 #include "GSM_Sim_Handler.h"
-
-
 
 struct InitializeGSMModule {
 
   static void initialize(Stream *stream) {
+    
     gsm_init_module(stream);
 
     gsm_queue_echo_on(echo_on_callback);
@@ -33,7 +36,7 @@ struct InitializeGSMModule {
   }
 
   static void set_preferred_storage_callback(bool success) {
-    Serial.print("SET TEXT MODE success: ");
+    Serial.print("SET PREFERRED STORAGE success: ");
     Serial.println(success);
     gsm_queue_set_new_message_indication(set_message_indication_callback);
   }
@@ -80,9 +83,9 @@ struct InitializeGSMModule {
     Serial.print(", value: ");
     Serial.println(value);
 
-    String phone_number = "+4915779517206";
-    String message = "Arduino test programm....";
-    gsm_queue_send_sms(phone_number, message, send_sms_callback);
+    //String phone_number = "+4915779517206";
+    //String message = "Arduino test programm....";
+    //gsm_queue_send_sms(phone_number, message, send_sms_callback);
   }
 
   static void send_sms_callback(bool success) {
@@ -140,20 +143,27 @@ struct InitializeGSMModule {
     Serial.print("Delete SMS all success: ");
     Serial.println(success);
   }
-
-
 };
 
-
-
 void setup() {
+  REG_STATUS = 0;
   // put your setup code here, to run once:
   Serial.begin(9600);
   Serial1.begin(9600);
+
+  Serial.println("Call setup method...");
+  init_timer();
   InitializeGSMModule::initialize(&Serial1);
 }
 
 void loop() {
+  if (REG_STATUS & (1 << TIMER_EXPIRED)) {
+    timer_notify();
+  }
   // put your main code here, to run repeatedly:
   gsm_loop();
+  int sms_index = gsm_serial_message_received();
+  if( sms_index >= 0) {
+    Serial.println("Message indication found: " + sms_index);
+  }
 }

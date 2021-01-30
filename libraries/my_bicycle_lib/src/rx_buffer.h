@@ -12,9 +12,13 @@ struct Buffer {
   char *end;
   
   void read_from_stream(Stream *stream);
+  
+  void advance_white_space();
+  
+  void reset();
 };
 
-static Buffer rx_buffer;
+Buffer &get_buffer();
 
 
 class Abstract_RX_Buffer_Reader {
@@ -37,8 +41,8 @@ public:
   virtual bool is_repeatable() {return false;}
   
 protected:
-  unsigned int match_index_ = 0;
   String catchable_;
+  unsigned int match_index_ = 0;
 };
 
 class OK_Buffer_Reader : public Abstract_RX_Buffer_Reader {
@@ -57,13 +61,26 @@ private:
 
 class CMTI_Buffer_Reader : public Abstract_RX_Buffer_Reader {
 public:
-  explicit CMTI_Buffer_Reader(gsm_success callback) : Abstract_RX_Buffer_Reader("+CMTI: "), sms_index_(0) ,komma_(",") {
+  explicit CMTI_Buffer_Reader() : Abstract_RX_Buffer_Reader("+CMTI: "), has_sms_index_(false), sms_index_(0), komma_(",") {
   }
   
   virtual bool is_read_body_done(char *& start, char * end) override;
 
   virtual void fire_callback(bool success) override;
+  
+  virtual bool is_repeatable() override {return true;}
+  
+  bool has_catched();
+  
+  bool has_sms_index();
+  
+  unsigned int pop_index();
+  
+  void reset();
 private:
+
+  bool has_sms_index_;
+
   unsigned int sms_index_;
   AdvanceInclusiveTill komma_;
 };
@@ -85,7 +102,7 @@ private:
 
 class IsRegisteredReader : public Abstract_RX_Buffer_Reader {
 public:
-  explicit IsRegisteredReader(gsm_success callback) : Abstract_RX_Buffer_Reader("+CREG: "), callback_(callback), sim_inserted_(), advance_to_OK_("OK") {
+  explicit IsRegisteredReader(gsm_success callback) : Abstract_RX_Buffer_Reader("+CREG: "), callback_(callback), is_registered_(), advance_to_OK_("OK") {
   
   }
 
@@ -95,7 +112,7 @@ public:
 private:
   gsm_success callback_;
   
-  StoreAsStringFixSize<3> sim_inserted_;
+  StoreAsStringFixSize<3> is_registered_;
   AdvanceInclusiveTill advance_to_OK_;
 };
 
@@ -132,6 +149,40 @@ private:
   // wait till ok
 };
 
+class ReadNothingReader : public Abstract_RX_Buffer_Reader {
+public:
+  ReadNothingReader() :  Abstract_RX_Buffer_Reader("") {}
+
+  virtual bool is_read_body_done(char *& start, char * end) override {return true;}
+
+  virtual void fire_callback(bool success) override {}
+};
+
+class SendSMSReader : public Abstract_RX_Buffer_Reader {
+public:
+  SendSMSReader(gsm_success callback) : Abstract_RX_Buffer_Reader("+CMGS: "), callback_(callback), advance_to_OK_("OK") {
+  
+  }
+  virtual bool is_read_body_done(char *& start, char * end) override;
+
+  virtual void fire_callback(bool success) override;
+private:
+   gsm_success callback_;
+   AdvanceInclusiveTill advance_to_OK_;
+};
+
+class SetPreferredSMSStorageReader : public Abstract_RX_Buffer_Reader {
+public:
+  SetPreferredSMSStorageReader(gsm_success callback) : Abstract_RX_Buffer_Reader("+CPMS: "), callback_(callback), advance_to_OK_("OK") {
+  
+  }
+  virtual bool is_read_body_done(char *& start, char * end) override;
+
+  virtual void fire_callback(bool success) override;
+private:
+   gsm_success callback_;
+   AdvanceInclusiveTill advance_to_OK_;
+};
 
 class ReadSMSReader : public Abstract_RX_Buffer_Reader {
 public:

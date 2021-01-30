@@ -70,10 +70,6 @@ void timer_notify(){
     // some timers are expired. Check them
     for(uint8_t i = 0; i < MAX_TIMERS; ++i) {
       MyTimer * t = &timers[i];
-      D_TIMER_PRINT("Timer notify: Timer ");
-      D_TIMER_PRINT(i);
-      D_TIMER_PRINT(" status ");
-      D_TIMER_PRINTLN(t->status);
       
       if(t->status == TIMER_STATUS_EXPIRED) {
         // reduce number of expired timers
@@ -163,6 +159,8 @@ timer_t timer_arm(timeCycle_t aTime, timer_f aFnc, uint8_t aFromISR){
 // The ID of the timer instance
 void timer_disarm(timer_t* aTimerId){
   if(*aTimerId < MAX_TIMERS) {
+    D_TIMER_PRINT("Timer: free timer ");
+    D_TIMER_PRINTLN(*aTimerId);
     timer_free(&timers[*aTimerId]);
   }
   *aTimerId = TIMER_INVALID;
@@ -170,14 +168,12 @@ void timer_disarm(timer_t* aTimerId){
 
 
 void tick(){
-  D_TIMER_PRINTLN(millis());
   for(uint8_t i = 0; i < MAX_TIMERS; ++i) {
     MyTimer * t = &timers[i];
     if( t->status == TIMER_STATUS_ARMED) {
        // reduce timer clock count
        t->roundCount--;
        if(t->roundCount <= 0){
-          D_TIMER_PRINTLN("Tick: A timer expired.");
           t->status = TIMER_STATUS_EXPIRED;
           ++number_of_expired_timers;
           REG_STATUS |= (1 << TIMER_EXPIRED);

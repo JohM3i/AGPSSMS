@@ -16,6 +16,8 @@
 
 #define ARDUINO_DEBUG_RFID
 
+//#define ARDUINO_DEBUG_TIMER
+
 
 #if defined(ARDUINO_DEBUG)
 #define D_INIT Serial.begin(9600)
