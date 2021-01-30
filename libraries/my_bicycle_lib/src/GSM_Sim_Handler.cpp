@@ -1,32 +1,27 @@
+
 #include "GSM_Sim_Handler.h"
 #include "timer.h"
 #include "component_debug.h"
 #include "reg_status.h"
 
+#include "rx_buffer.h"
+
 #define DEFAULT_TIME_OUT_READ_SERIAL	5000
 #define GSM_QUEUE_MAX_SIZE 8
 #define RESPONSE_BUFFER_RESERVE_MEMORY 255
-
-
-class CommandProcessor {
-public:
-  virtual void process(String &response, GSMModuleResponseState state) = 0;
-  virtual ~CommandProcessor() {};
-};
 
 // an element of our queue
 struct Q_element {
 
   void clear() {
     command = "";
-    delete processor;
-    processor = nullptr;
+    delete reader;
+    reader = nullptr;
   }
 
   unsigned long max_response_time;
   String command;
-  CommandProcessor *processor;
-  gsm_f callback;
+  Abstract_RX_Buffer_Reader *reader;
 };
 
 
@@ -37,10 +32,12 @@ unsigned int num_queued_elements = 0;
 
 
 GSMModuleState moduleState;
-GSMModuleResponseState responseState;
+GSMResponseState responseState;
+
+Abstract_RX_Buffer_Reader * current_reader = nullptr;
+
 
 Stream *gsm = nullptr;
-String response_buffer;
 timer_t timer_id = TIMER_INVALID;
 
 
@@ -51,150 +48,19 @@ static void queue_element(const String &command, CommandProcessor *callback, uns
 static int indexOfRange(const String &src, const String &match, int from, int to);
 static void parseSMSHeader(SMSMessage &out_message, int index_header_start, int index_header_end, String &buffer);
 
-class TrivialCommandProcessor : public CommandProcessor {
-public:
-  explicit TrivialCommandProcessor(gsm_f callback) : callback_(callback) {}
-
-  virtual void process(String &response, GSMModuleResponseState state) override {
-    // we do not really
-    if(callback_) {
-      callback_(response, state);
-    }
-  }
-
-  gsm_f callback_;
-};
-
-class ReadSMSCommandProcessor : public CommandProcessor {
-public:
-
-  explicit ReadSMSCommandProcessor(r_sms_f callback): callback(callback) {}
-
-  virtual void process(String &response, GSMModuleResponseState state) override {
-    SMSMessage outMessage;
-    
-    bool success = gsm_parse_sms_message(outMessage, response) && state == GSMModuleResponseState::SUCCESS;
-    if(callback) {
-      callback(outMessage, success);
-    }
-  }
-
-  r_sms_f callback;
-};
-
-class ListSMSCommandProcessor : public CommandProcessor {
-public:
-  explicit ListSMSCommandProcessor(gsm_f callback) : callback_(callback) {}
-  
-  virtual void process(String &response, GSMModuleResponseState state) override {
-    String processed_response = "";
-    if(state == GSMModuleResponseState::SUCCESS) {
-      // parse
-      if(response.indexOf("ERROR") == -1) {
-        // the response contains the data
-        if(response.indexOf("+CMGL:") != -1) {
-          bool quitLoop = false;
-
-          while(!quitLoop) {
-            if(response.indexOf("+CMGL:") < 0) {
-              quitLoop = true;
-              continue;
-            }
-
-            response = response.substring(response.indexOf("+CMGL: ") + 7);
-            String metin = response.substring(0, response.indexOf(","));
-            metin.trim();
-
-            if(processed_response == "") {
-              processed_response += metin;
-            } else {
-              processed_response += ",";
-              processed_response += metin;
-            }
-
-          }
-        } else {
-          // case no sms stored
-        }
-      }
-
-    } 
-    
-    if(callback_){
-      callback_(processed_response, state);
-    }
-  }
-  
-private:
-  gsm_f callback_;
-};
-
-
-class SendSMSContext{
-public:
-
-  String &getContext() {
-    return responseBuffer;
-  }
-  
-  void collect(const String &response){
-   responseBuffer += response;
-  }
-private:
-
-  String responseBuffer;
-};
-
-class SendSMSCollectorProcessor: public CommandProcessor {
-public:
-  explicit SendSMSCollectorProcessor(SendSMSContext *context) : context_(context) {
-  }
-
-  virtual void process(String &response, GSMModuleResponseState state) override {
-    if (context_) {
-      context_->collect(response);
-    }
-  }
-private:
-  SendSMSContext *context_;
-};
-
 
 void gsm_init_module(Stream *stream) {
   gsm = stream;
-  response_buffer.reserve(RESPONSE_BUFFER_RESERVE_MEMORY);
   
   moduleState = GSMModuleState::SLEEP;
   gsm_wakeup();
-};
-
-class SendSMSEndProcessor : public CommandProcessor {
-public:
-   explicit SendSMSEndProcessor(gsm_f callback) : callback_(callback) {
-     
-   }
-  
-  virtual void process(String &response, GSMModuleResponseState state) override {
-    context_.collect(response);
-    if(callback_){
-     callback_(context_.getContext(), state);
-    }
-  }
-  
-  SendSMSContext *getContext() {
-    return &context_;
-  }
-  
-private:
-  SendSMSContext context_;
-  gsm_f callback_;
-  
 };
 
 GSMModuleState gsm_loop() {
   bool onRepeat = false;
 
   do {
+    onReapeat = false;
     switch (moduleState) {
       case GSMModuleState::SLEEP:
       case GSMModuleState::WAKE_UP:
@@ -203,7 +69,6 @@ GSMModuleState gsm_loop() {
       case GSMModuleState::READY: {
         // the gsm module is ready, but no further communication happened yet.delete_sms_all_read
         // -> check if some workload is queued
-        onRepeat = false;
         if (num_queued_elements <= 0) {
           REG_STATUS &= ~(1 << SIM_AT_QUEUED);
           break;
@@ -213,28 +78,74 @@ GSMModuleState gsm_loop() {
         D_SIM_PRINTLN("GSM execute command " + element.command);
         gsm->print(element.command);
         // start timeout timer
-        responseState = GSMModuleResponseState::UNKNOWN;
+        responseState = GSMModuleResponseState::TRY_CATCH;
+        current_reader = nullptr;
         armTimeoutTimer(element.max_response_time);
         moduleState = GSMModuleState::BUSY;
       }
       case GSMModuleState::BUSY: {
-        // a command to gsm module has already been fired
+
+        buffer.readFromStream(gsm);
+        auto &element = queue[current_index];
         switch(responseState) {
-          case GSMModuleResponseState::UNKNOWN:
-            if(!gsm->available()){
+          case GSMModuleResponseState::TRY_CATCH:
+           // in this case the default reader and the spezialized command reader "fight" against each other - which reader has to parse the underlying response
+           // -> determine current_reader
+           
+           bool curr_reader_found = false;
+           auto default_advance = -1;
+           if(default_advance > 0) {
+             // TODO: set default reader variable and try to catch it
+             current_reader = nullptr;
+             buffer.start += default_advance;
+             curr_reader_found = true;
+           }
+           
+           
+           auto elem_advance = element.reader->try_catch(buffer.start, buffer.end);
+           if(elem_advance > 0) {
+             current_reader = element.reader;
+             buffer.start += elem_advance;
+             curr_reader_found = true;
+           }
+           
+           if(curr_reader_found) {
+             break;
+           }
+           responseState = GSMModuleResponseState::READING;
+           
+          case GSMModuleResponseState::READING: {
+            if(!current_reader->is_read_body_done(buffer.start, buffer.end)) {
+              // we are not done reading - stay in this state
               break;
             }
-            response_buffer = gsm->readString();
-            responseState = GSMModuleResponseState::SUCCESS;
-            D_SIM_PRINTLN("GSM response: " + response_buffer);
-          case GSMModuleResponseState::SUCCESS:
-            // when we were successfull, we have to disable the timeout timer
+            // we are done with reading. Could this command occour more than once ?
+            if(current_reader->is_repeatable()) {
+              // repeat loop
+              onRepeat = true;
+              // when it is repeatable, we have to try to catch the response command again
+              responseState = GSMModuleResponseState::TRY_CATCH;
+              break;
+            }
+            responseState = GSMMoudleResponseState = GSMModuleresponseState::SUCCESS;
+          }
+          case GSMModuleresponseState::SUCCESS: {
+            // check if the current_reader is the element reader or the default reader
+            if(current_reader != element.reader && current_reader != nullptr) {
+              // aww shit here we go again
+              onRepeat = true;
+              responseState = GSMModuleResponseState::TRY_CATCH;
+  
+              break;
+            }
+          
             disarmTimer();
-          case GSMModuleResponseState::TIMEOUT:
+          }
+          case GSMModuleResponseState::TIMEOUT: {
             // in case success and timeout, we can fire the callback with the given response
-            auto &element = queue[current_index];
-            if(element.processor) {
-              element.processor->process(response_buffer, responseState);
+            if(element.reader) {
+              element.reader->fire_callback(responseState == GSMModuleresponseState::SUCCESS);
+              // TODO: reset default_reader
             }
             // clean up
             element.clear();
@@ -245,9 +156,9 @@ GSMModuleState gsm_loop() {
             // repeat switch case in order to check for new workload
             onRepeat = true;
             break;
+          }
         }
-      
-      break;
+        break;
       }
     }
   } while(onRepeat);
@@ -255,128 +166,107 @@ GSMModuleState gsm_loop() {
   return moduleState;
 }
 
-void gsm_queue_echo_off(gsm_f callback) {
-  String command = "ATE0\r";
-  queue_element(command, new TrivialCommandProcessor(callback));
+void gsm_queue_echo_off(gsm_success callback) {
+  queue_element(command, new RX_Buffer_Reader<FixAnswerReader>(FixAnswerReader("OK"), callback));
 }
 
-void gsm_queue_echo_on(gsm_f callback) {
+void gsm_queue_echo_on(gsm_success callback) {
   String command = "ATE1\r";
-  queue_element(command, new TrivialCommandProcessor(callback));
+  queue_element(command, new RX_Buffer_Reader<FixAnswerReader>(FixAnswerReader("OK", callback));
 }
 
-void gsm_queue_signal_quality(gsm_f callback) {
+void gsm_queue_signal_quality(gsm_bool_int callback) {
   String command = "AT+CSQ\r";
-  queue_element(command, new TrivialCommandProcessor(callback), 5000);
+  queue_element(command, new RX_Buffer_Reader<SignalQualityReader>(SignalQualityReader(callback)), 5000);
 }
 
-void gsm_queue_is_registered(gsm_f callback) {
+void gsm_queue_is_registered(gsm_success callback) {
   String command = "AT+CREG?\r";
-  queue_element(command, new TrivialCommandProcessor(callback));
+  
+  queue_element(command, new RX_Budder_reader<IsRegisteredReader>(IsRegisteredReader(callback));
 }
 
-void gsm_queue_is_sim_inserted(gsm_f callback) {
+void gsm_queue_is_sim_inserted(gsm_success callback) {
   String command = "AT+CSMINS?\r";
-  queue_element(command, new TrivialCommandProcessor(callback));
+  queue_element(command, new RX_Buffer_Rader<IsSimInsertedReader>(IsSimInsertedReader(callback)));
 }
 
-void gsm_queue_phone_status(gsm_f callback) {
+void gsm_queue_phone_status(gsm_bool_int callback) {
   String command = "AT+CPAS\r";
-  queue_element(command, new TrivialCommandProcessor(callback));
+  queue_element(command, new RX_Buffer_Reader<PhoneStatusReader>(PhoneStatusReader(callback));
 }
 
-void gsm_queue_save_settings_to_module(gsm_f callback) {
+void gsm_queue_save_settings_to_module(gsm_success callback) {
   String command = "AT&W\r";
-  queue_element(command, new TrivialCommandProcessor(callback));
+  queue_element(command, new RX_Buffer_Reader<FixAnswerReader>(FixAnswerReader("OK"), callback));
 }
 
-void gsm_queue_set_text_mode(bool textModeOn, gsm_f callback) {
+void gsm_queue_set_text_mode(bool textModeOn, gsm_success callback) {
   String command = "AT+CMGF=";
   command += (textModeOn ? "1" : "0");
   command += "\r";
-  queue_element(command, new TrivialCommandProcessor(callback));
+  queue_element(command, new RX_Buffer_Reader<FixAnswerReader>(FixAnswerReader("OK"), callback));
 }
 
-void gsm_queue_set_preferred_sms_storage(const String &mem1, const String &mem2, const String &mem3, gsm_f callback) {
+void gsm_queue_set_preferred_sms_storage(const String &mem1, const String &mem2, const String &mem3, gsm_success callback) {
   String command = "AT+CPMS=\"" + mem1 + "\",\"" + mem2 + "\",\"" + mem3 + "\"\r";
-  queue_element(command, new TrivialCommandProcessor(callback));
+  
+  queue_element(command, new RX_Buffer_Reader<PreferredSMSStorageReader>(PreferredSMSStorageReader(callback)));
 }
 
-void gsm_queue_set_new_message_indication(gsm_f callback) {
+void gsm_queue_set_new_message_indication(gsm_success callback) {
   String command = "AT+CNMI=2,1\r";
-  queue_element(command, new TrivialCommandProcessor(callback));
+  queue_element(command, new RX_Buffer_Reader<FixAnswerReader>(FixAnswerReader("OK"), callback));
 }
 
-void gsm_queue_set_charset(const String &charset, gsm_f callback) {
+void gsm_queue_set_charset(const String &charset, gsm_success callback) {
   String command = "AT+CSCS=\"" + charset + "\"\r";
-  queue_element(command, new TrivialCommandProcessor(callback));
+  queue_element(command, new RX_Buffer_Reader<FixAnswerReader>(FixAnswerReader("OK"), callback));
 }
 
-void gsm_queue_send_sms(const String &number, const String &message, gsm_f callback) {
-  auto callback_handler = new SendSMSEndProcessor(callback);
-
+void gsm_queue_send_sms(const String &number, const String &message, gsm_success callback) {
   String command = "AT+CMGS=\"";
   command += number;
   command += "\"\r";
-  queue_element(command, new SendSMSCollectorProcessor(callback_handler->getContext()));
-  queue_element(message, new SendSMSCollectorProcessor(callback_handler->getContext()));
-  
+  queue_element(command, new RX_Buffer_Reader<AlwaysDoneParser>(AlwaysDoneParser()));  
+  queue_element(message, new RX_Buffer_Reader<AlwaysDoneParser>(AlwaysDoneParser()));
   command = (char) 26;  
-  queue_element(command, callback_handler);
+  queue_element(command, new RX_Buffer_Reader<SendSMSResponseReader>(SendSMSResponseReader(callback)));
 }
 
-void gsm_queue_read_sms(unsigned int index, bool markRead, r_sms_f callback) {
+void gsm_queue_read_sms(unsigned int index, bool markRead, gsm_bool_sms callback) {
   String command = "AT+CMGR=";
   command += index;
   command += ",";
   command += (markRead ? "0" : "1");
   command += "\r";
-  queue_element(command, new ReadSMSCommandProcessor(callback), 5000);
+  queue_element(command, new RX_Buffer_Reader<ReadSMSResponseReader>(callback), 5000);
 }
 
-void gsm_queue_list_sms(bool onlyUnread, gsm_f callback) {
+void gsm_queue_list_sms(bool onlyUnread, gsm_bool_string callback) {
   String command = onlyUnread ? "AT+CMGL=\"REC UNREAD\",1\r" : "AT+CMGL=\"ALL\",1\r";
-  queue_element(command, new ListSMSCommandProcessor(callback));
+  queue_element(command, new RX_Buffer_Reader(ListSMSReader(callback));
 }
 
-void gsm_queue_delete_sms(unsigned int index, gsm_f callback) {
+void gsm_queue_delete_sms(unsigned int index, gsm_success callback) {
   String command = "AT+CMGD=";
   command += index;
   command += ",0\r";
-  queue_element(command, new TrivialCommandProcessor(callback));
+  queue_element(command, new RX_Buffer_Reader<FixAnswerReader>(FixAnswerReader("OK"), callback));
 }
 
-void gsm_queue_delete_sms_all_read(gsm_f callback) {
+void gsm_queue_delete_sms_all_read(gsm_success callback) {
   String command = "AT+CMGD=1,1\r";
-  queue_element(command, new TrivialCommandProcessor(callback));
+  queue_element(command, new RX_Buffer_Reader<FixAnswerReader>(FixAnswerReader("OK"), callback));
 }
 
-void gsm_queue_delete_sms_all(gsm_f callback) {
+void gsm_queue_delete_sms_all(gsm_success callback) {
   String command = "AT+CMGD=1,4\r";
-  queue_element(command, new TrivialCommandProcessor(callback), 30000);
+  queue_element(command, new RX_Buffer_Reader<FixAnswerReader>(FixAnswerReader("OK"), callback), 30000);
 }
 
 int gsm_serial_message_received() {
-  if(moduleState != GSMModuleState::READY){
-    return -1;
-  }
-  
-  if(!gsm->available()) {
-    return -1;
-  }
-  
-  response_buffer = gsm->readString();
-  D_SIM_PRINTLN("GSM response found on buffer: " + response_buffer);
-  return gsm_serial_message_received(response_buffer);
-}
-
-int gsm_serial_message_received(String &serialRaw) {
-  	if (serialRaw.indexOf("+CMTI:") > -1){
-		String index = serialRaw.substring(serialRaw.indexOf("\",") + 2);
-		index.trim();
-		return index.toInt();
-	}
-	return -1;
+  return default_reader.contained_cmti() ? default_reader.pop_index() : -1;
 }
 
 bool gsm_parse_sms_message(SMSMessage &out_message, String &response) {
@@ -431,7 +321,6 @@ void command_timed_out() {
   responseState = GSMModuleResponseState::TIMEOUT;
   disarmTimer();
   D_SIM_PRINTLN("GSM response timed out");
-  response_buffer = "";
 }
 
 void armTimeoutTimer(unsigned long max_response_time) {
@@ -442,41 +331,30 @@ void disarmTimer() {
   timer_disarm(&timer_id);
 }
 
-void queue_element(const String &command, CommandProcessor *processor, unsigned long max_response_time) {
+void queue_element(const String &command, Abstract_RX_Buffer_Reader *reader, unsigned long max_response_time) {
   auto queue_index = (current_index + num_queued_elements) % GSM_QUEUE_MAX_SIZE;
   D_SIM_PRINTLN("GSM command queued: " + command);
   auto &element = queue[queue_index];
-  if(!element.processor) {
+  if(!element.reader) {
     element.max_response_time = max_response_time;
     element.command = command;
-    element.processor = processor;
+    element.reader = reader;
     num_queued_elements++;
     REG_STATUS |= (1 << SIM_AT_QUEUED);
   } else {
     // in this case we have a queue overflow
     D_SIM_PRINTLN("GSM ERROR: Overflow on gsm queue !!!");
-    delete processor;
+    delete reader;
   }
 }
 
 int indexOfRange(const String &src, const String &match, int from, int to){
-	//if(start < 0){
-	//	start = 0;
-	//}
-	//bool match_found = false;
-	//int i;
-	//for(i = from; i < min(src.length(), to) - match.length() && !match_found; i++){
-		
-	//}
+
 	if(from >= src.length()){
 		return -1;
 	}
 	
 	int retVal = src.indexOf(match, from);
-	//Serial.print("index of from ");
-	//Serial.print(from);
-	//Serial.print(" to ");
-	//Serial.println(to);
 	if(to <= retVal) {
 		retVal = -1;
 	}
@@ -564,7 +442,7 @@ void parseSMSHeader(SMSMessage &out_message, int index_header_start, int index_h
         is_date_time_field = true;
       }
     }
-		
+
     // move to next field and jump over ','
     index_header_start = index_something_end;
     index_something_end = indexOfRange(buffer, "\"", index_header_start + 1, index_header_end);

@@ -33,7 +33,7 @@ void loop() {
 
   if(is_shock_registered()){
     set_shock_sensor_enabled(false);
-    enable_buzzer(200);
+    enable_buzzer(1000);
     Serial.println("Eine Erschütterung wurde festgestellt.");
     delay(5000);
     set_shock_sensor_enabled(true);
