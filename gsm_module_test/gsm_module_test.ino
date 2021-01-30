@@ -83,21 +83,18 @@ struct InitializeGSMModule {
     Serial.print(", value: ");
     Serial.println(value);
 
-    //String phone_number = "+4915779517206";
-    //String message = "Arduino test programm....";
-    //gsm_queue_send_sms(phone_number, message, send_sms_callback);
-  }
-
-  static void send_sms_callback(bool success) {
-    Serial.print("Phone status success: ");
-    Serial.print(success);
     gsm_queue_list_sms(false, list_sms_callback);
   }
 
+  
 
   static void list_sms_callback(bool success, String &response) {
+    Serial.print("LIST SMS success: ");
+    Serial.println(success);
+    
     if (response.length() > 0) {
-      Serial.println("SIM process sms storage list: " + response);
+      Serial.print("SIM process sms storage list: ");
+      Serial.println(response);
       uint8_t start = 0;
       uint8_t end = response.indexOf(",", start);
       int sms_index = -1;
@@ -109,6 +106,7 @@ struct InitializeGSMModule {
       }
       if (sms_index >= 0) {
         gsm_queue_read_sms(sms_index, false, read_sms_callback);
+        gsm_queue_delete_sms(sms_index, delete_sms_callback);
       }
     }
   
@@ -127,21 +125,44 @@ struct InitializeGSMModule {
     Serial.print("Message: ");
     Serial.println(message.message);
 
+    String phone_number = "+4915779517206";
+    String sms_message = "Arduino test programm....";
+    gsm_queue_send_sms(phone_number, sms_message, send_sms_callback);
   }
+
+
+  static void send_sms_callback(bool success) {
+    Serial.print("Phone status success: ");
+    Serial.print(success);
+   }
+
+
 
   static void delete_sms_callback(bool success ) {
     Serial.print("Delete single SMS success: ");
     Serial.println(success);
+
+    gsm_queue_delete_sms_all_read(delete_sms_all_read_callback);
   }
 
   static void delete_sms_all_read_callback(bool success) {
     Serial.print("Delete SMS all read success: ");
     Serial.println(success);
+
+    gsm_queue_delete_sms_all(delete_sms_all_callback);
   }
 
   static void delete_sms_all_callback(bool success) {
     Serial.print("Delete SMS all success: ");
     Serial.println(success);
+    gsm_queue_list_sms(false, empty_list_sms_callback);
+  }
+
+  static void empty_list_sms_callback(bool success, String &response){
+    Serial.print("List SMS on empty list success: ");
+    Serial.println(success);
+    Serial.print("The corresponing response is (should be empty): ");
+    Serial.println(response);
   }
 };
 
@@ -161,9 +182,14 @@ void loop() {
     timer_notify();
   }
   // put your main code here, to run repeatedly:
-  gsm_loop();
-  int sms_index = gsm_serial_message_received();
-  if( sms_index >= 0) {
-    Serial.println("Message indication found: " + sms_index);
+
+
+  if(((REG_STATUS & ((1 << SIM_AT_QUEUED) | (1 << LOOP_SIM))) > 0) || Serial1.available()){
+    gsm_loop();
+    int sms_index = gsm_serial_message_received();
+    if( sms_index >= 0) {
+      Serial.print("Message indication found: ");
+      Serial.println(sms_index);
+    }
   }
 }

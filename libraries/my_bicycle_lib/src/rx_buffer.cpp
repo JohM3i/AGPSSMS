@@ -283,7 +283,7 @@ bool ListSMSReader::is_repeatable() {
   catch_index_cmgl = 0;
   match_index_ = 0;
   
-  if(data.length() <= 0 ) {
+  if(data.length() > 0 && cmgl_index_.data.length() > 0 ) {
     data += ",";
   }
 
