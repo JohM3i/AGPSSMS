@@ -145,7 +145,10 @@ timer_t timer_arm(timeCycle_t aTime, timer_f aFnc, uint8_t aFromISR){
     // set the callback function
     t->callback = aFnc;
   } else {
-    D_TIMER_PRINTLN(" ERROR: No free timer could be found.");
+    D_PRINTLN("TIMER ERROR: No free timer could be found.");
+    #ifdef ARDUINO_DEBUG
+    while(true){}
+    #endif
   }
   
   if(aFromISR == 0)

@@ -141,7 +141,7 @@ GSMModuleState gsm_loop() {
         
         if(is_gsm_response_busy()){
         
-#ifdef ARDUINO_DEBUG_SIM
+/*#ifdef ARDUINO_DEBUG_SIM
           D_SIM_PRINTLN("RX_buffer is busy ... content:");
 
           char* start =get_buffer().start;
@@ -151,7 +151,7 @@ GSMModuleState gsm_loop() {
             ++start;
           }
           D_SIM_PRINTLN("");
-#endif
+#endif */
           default_reader_handle_gsm_response();
           break;
         }
@@ -181,17 +181,22 @@ GSMModuleState gsm_loop() {
            bool curr_reader_found = false;
            int default_advance = default_reader.try_catch(get_buffer().start, get_buffer().end);
            if(default_advance > 0) {
-             // TODO: set default reader variable and try to catch it
+             D_SIM_PRINTLN("GSM TRY CATCH by default reader.");
              current_reader = &default_reader;
              get_buffer().start += default_advance;
              curr_reader_found = true;
            }
-           
+
            int elem_advance = element.reader->try_catch(get_buffer().start, get_buffer().end);
            if(elem_advance > 0) {
+             D_SIM_PRINTLN("GSM TRY CATCH by element reader.");
              current_reader = element.reader;
              get_buffer().start += elem_advance;
              curr_reader_found = true;
+             
+             if(!default_reader.has_sms_index()) {
+               default_reader.reset();
+             }
            }
            
            if(!curr_reader_found) {
@@ -426,8 +431,14 @@ void queue_element(const String &command, Abstract_RX_Buffer_Reader *reader, uns
     D_SIM_PRINTLN("GSM ERROR: Overflow on gsm queue !!!");
     delete reader;
   }
-  
-  delay(1000);
+
+#ifdef ARDUINO_DEBUG_SIM
+  if(num_queued_elements > GSM_QUEUE_MAX_SIZE) {
+    D_PRINTLN("GSM FATAL - Queue overflow !!");
+    while(true) {}
+  }
+#endif
+
 }
 
 bool is_gsm_response_busy() {

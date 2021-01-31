@@ -4,7 +4,7 @@
 
 static int indexOfRange(const String &src, const String &match, int from, int to);
 
-static void parseSMSHeader(SMSMessage &out_message, int index_header_start, int index_header_end, String &buffer);
+static bool parseSMSHeader(SMSMessage &out_message, int index_header_start, int index_header_end, String &buffer);
 
 
 static void debug_print_rx(char *start, char *end) {
@@ -24,15 +24,6 @@ void Buffer::read_from_stream(Stream *stream) {
   while(stream->available()) {
     *end = stream->read();
     ++end;
-    
-    #ifdef ARDUINO_DEBUG_SIM
-    
-    if(end - data >= RESPONSE_BUFFER_RESERVE_MEMORY){
-      D_SIM_PRINTLN("FATAL - Buffer Overflow !!");
-      while(true) {}
-    }
-    
-    #endif
   }
 }
 
@@ -246,7 +237,7 @@ void ReadSMSReader::fire_callback(bool success) {
   
   if(callback_){
     if(success) {
-      parseSMSHeader(out_message, 1, header_.data.length() - 2, header_.data);
+      success = parseSMSHeader(out_message, 1, header_.data.length() - 2, header_.data);
       
       out_message.message = body_.data.substring(0, body_.data.lastIndexOf("OK"));
       out_message.message.trim();
@@ -321,7 +312,7 @@ int indexOfRange(const String &src, const String &match, int from, int to){
 	return retVal;
 }
 
-void parseSMSHeader(SMSMessage &out_message, int index_header_start, int index_header_end, String &buffer) {
+bool parseSMSHeader(SMSMessage &out_message, int index_header_start, int index_header_end, String &buffer) {
   // search for REC (received)
 
   out_message.folder = SMS_FOLDER::UNKNOWN;
@@ -342,6 +333,10 @@ void parseSMSHeader(SMSMessage &out_message, int index_header_start, int index_h
   if(out_message.folder != SMS_FOLDER::UNKNOWN){
     // skip "STO " or "REC " 
     index_folder += 4;
+
+    if(index_folder >= buffer.length()){
+      return false;
+    }
 
     // now possible strings: for incoming: "UNREAD", "READ" ; for send:"UNSENT", "SENT"
     if(out_message.folder == SMS_FOLDER::INCOMING){
@@ -372,12 +367,19 @@ void parseSMSHeader(SMSMessage &out_message, int index_header_start, int index_h
   } else {
     // error ! this should not happen
   }
+  
+  if(index_folder >= buffer.length()){
+    return false;
+  }
+  
   // now phone number <oa> and datetime are remaining ...
   // now index_folder should directly point to '"+phone_number"'
   auto phone_number_end = buffer.indexOf("\"", index_header_start + 1);
   
   if(phone_number_end >= 0 && phone_number_end < index_header_end){
     out_message.phone_number = buffer.substring(index_header_start + 1, phone_number_end);
+  } else {
+    return false;
   }
 
   // jump over phone number
@@ -390,7 +392,7 @@ void parseSMSHeader(SMSMessage &out_message, int index_header_start, int index_h
   bool is_date_time_field = false;
 	
   String field;
-  while(index_something_end >= 0 && !is_date_time_field) {
+  while(index_something_end >= 0 && index_something_end <= buffer.length() && !is_date_time_field) {
     field = buffer.substring(index_header_start + 1, index_something_end);
     // check field is datetime
     // syntax yy/mm/dd,hh:mm:ss+04" ->without "+04" 17 characters
@@ -411,6 +413,8 @@ void parseSMSHeader(SMSMessage &out_message, int index_header_start, int index_h
   if(is_date_time_field){
     out_message.date_time = field;
   }
+  
+  return is_date_time_field;
 }
 
 

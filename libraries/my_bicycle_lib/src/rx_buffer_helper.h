@@ -30,7 +30,7 @@ struct AdvanceInclusiveTill {
   String delimiter_;
 };
 
-
+template<int MAXSIZE>
 struct StoreAsStringInclusiveTill {
   
   explicit StoreAsStringInclusiveTill(String str) : data(""), delimiter_index_(0), delimiter_(str) {
@@ -38,7 +38,7 @@ struct StoreAsStringInclusiveTill {
   }
   
   bool store_till(char *& start, char *end) {
-    while(start != end && delimiter_index_ < delimiter_.length()) {
+    while(start != end && delimiter_index_ < delimiter_.length() && MAXSIZE >= data.length()) {
       data += *start;
       if(*start == delimiter_.charAt(delimiter_index_)){
         ++delimiter_index_;
@@ -48,7 +48,7 @@ struct StoreAsStringInclusiveTill {
       ++start;
     }
     
-    return delimiter_index_ >= delimiter_.length();
+    return delimiter_index_ >= delimiter_.length() || MAXSIZE >= data.length();
   }
   
   void reset() {

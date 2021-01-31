@@ -97,7 +97,7 @@ public:
 private:
   gsm_bool_int callback_;
   
-  StoreAsStringInclusiveTill signal_quality_;
+  StoreAsStringInclusiveTill<3> signal_quality_;
   AdvanceInclusiveTill advance_to_OK_;
 };
 
@@ -131,7 +131,7 @@ private:
   gsm_success callback_;
   
   AdvanceInclusiveTill advance_comma_;
-  StoreAsStringInclusiveTill store_till_OK_;
+  StoreAsStringInclusiveTill<5> store_till_OK_;
 };
 
 class PhoneStatusReader : public Abstract_RX_Buffer_Reader {
@@ -205,8 +205,8 @@ public:
 private:
   gsm_bool_sms callback_;
   
-  StoreAsStringInclusiveTill header_;
-  StoreAsStringInclusiveTill body_;
+  StoreAsStringInclusiveTill<60> header_;
+  StoreAsStringInclusiveTill<255> body_;
 };
 
 class ListSMSReader : public Abstract_RX_Buffer_Reader {
@@ -231,7 +231,7 @@ private:
   String catch_match_cmgl;
   
   // cmgl parsing stuff
-  StoreAsStringInclusiveTill cmgl_index_;
+  StoreAsStringInclusiveTill<315> cmgl_index_;
   AdvanceInclusiveTill advance_cmgl_end;
   
   String data;
