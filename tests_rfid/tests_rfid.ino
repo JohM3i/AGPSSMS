@@ -8,6 +8,10 @@ void setup() {
   rfid_start();
 
   Serial.begin(9600);
+  Serial.println("RFID Testprogramm gestartet! Verhalten:");
+  Serial.println("- Halte einen RFID Tag an das Lesegerät und der Tag wird eingelesen");
+  Serial.println("- Wurde ein Tag richtig eingelesen, wird ein Signalton ausgegeben und die Tagdaten werden angezeigt.");
+  
 }
 
 void loop() {

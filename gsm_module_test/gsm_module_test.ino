@@ -157,7 +157,7 @@ struct InitializeGSMModule {
     Serial.println(response);
 
     
-    String phone_number = "+4915779517206";
+    String phone_number = "+4917685266454";
     String sms_message = "Arduino test programm....";
     gsm_queue_send_sms(phone_number, sms_message, send_sms_callback);
   }
