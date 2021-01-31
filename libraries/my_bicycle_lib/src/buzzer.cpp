@@ -1,5 +1,8 @@
 #define BUZZER_PIN 6
 
+#define PWM_STATE_HOLD_IN_MICRO_SECONDS 183
+
+
 #include "buzzer.h"
 
 #include <Arduino.h>
@@ -11,13 +14,26 @@ void init_buzzer() {
 }
 
 
-void enable_buzzer(unsigned int ms_sound, unsigned int repeat, unsigned int delay_ms){
-  for(uint8_t i = 0u; i < repeat; i++) {
-    digitalWrite(BUZZER_PIN, HIGH);
-    //Serial.println("buzzer on");
-    delay(ms_sound);
-    digitalWrite(BUZZER_PIN, LOW);
+static inline void activeDelayMicros(unsigned long delay) {
+  auto current = micros();
+  while(micros() - current < delay) {};
+}
 
+void enable_buzzer(unsigned long ms_sound, unsigned int repeat, unsigned int delay_ms){
+  for(uint8_t i = 0u; i < repeat; i++) {
+  
+    // compute the number of square waves
+    unsigned long num_waves = (ms_sound * 500) / PWM_STATE_HOLD_IN_MICRO_SECONDS;
+    for(unsigned long j = 0ul; j < num_waves; ++j) {
+      digitalWrite(BUZZER_PIN, HIGH);
+
+      //activeDelayMicros(PWM_STATE_HOLD_IN_MICRO_SECONDS);
+      delayMicroseconds(PWM_STATE_HOLD_IN_MICRO_SECONDS);
+      digitalWrite(BUZZER_PIN, LOW);
+      //activeDelayMicros(PWM_STATE_HOLD_IN_MICRO_SECONDS);
+      delayMicroseconds(PWM_STATE_HOLD_IN_MICRO_SECONDS);
+    }
+    
     if(i +1 < repeat){
       delay(delay_ms);
     }

@@ -30,9 +30,7 @@ void loop()
 
 void updateSerial()
 {
-  delay(2000);
-  while (Serial.available()) 
-  {
+  while (Serial.available()) {
     String cmd = "";
     cmd = Serial.readString();
     //cmd+=(char)Serial.read();
@@ -49,6 +47,6 @@ void updateSerial()
   
   while(Serial1.available()) 
   {
-    Serial.write(Serial1.read());//Forward what Software Serial received to Serial Port
+    Serial.print((char)Serial1.read());
   }
 }

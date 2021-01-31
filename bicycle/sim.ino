@@ -242,7 +242,18 @@ struct InitializeGSMModule {
     gsm_init_module(stream);
 
     numTries = 5;
-    gsm_queue_set_text_mode(true, setTextModeCallback);
+    gsm_queue_echo_off(echoOffCallback);
+  }
+
+  static void echoOffCallback(String &response, GSMModuleResponseState state) {
+    if (gsm_response_contains_OK(response)) {
+      gsm_queue_set_text_mode(true, setTextModeCallback);
+    } else if (numTries > 0) {
+      --numTries;
+      gsm_queue_echo_off(echoOffCallback);
+    }
+    D_SIM_PRINT(numTries);
+    D_SIM_PRINTLN(" left");
   }
 
   static void setTextModeCallback(String &response, GSMModuleResponseState state) {
@@ -336,48 +347,4 @@ void loop_sim() {
   }
 
   REG_STATUS &= ~(1 << LOOP_SIM);
-}
-
-bool init_gsm() {
-  /*D_SIM_PRINT("sms initialization complete: ");
-    bool retVal = sms.initSMS(5);
-
-    if (!retVal) {
-    D_SIM_PRINT("sms initialization failed: ");
-    enable_buzzer(100, 3, 50);
-    delay(1000);
-    }
-
-    if (!sms.isSimInserted()) {
-    D_SIM_PRINTLN("No SIM-Kart found: ");
-    enable_buzzer(100, 5, 50);
-    delay(1000);
-    }
-
-
-
-    D_SIM_PRINTLN(retVal);
-
-    bool is_registered = sms.isRegistered();
-
-    if (!is_registered) {
-    for (uint8_t i = 0; i < 4 && !sms.isRegistered(); ++i) {
-      delay(2000);
-      is_registered = sms.isRegistered();
-    }
-
-    if (!is_registered) {
-      D_SIM_PRINTLN("No Registered in network: ");
-      enable_buzzer(100, 4, 50);
-    }
-    }
-
-
-    D_SIM_PRINT("is Module Registered to Network?... ");
-    D_SIM_PRINTLN(sms.isRegistered());
-
-    D_SIM_PRINT("Signal Quality... ");
-    D_SIM_PRINTLN(sms.signalQuality());
-    return retVal;*/
-  return false;
 }
