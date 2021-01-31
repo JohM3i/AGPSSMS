@@ -9,7 +9,7 @@
 #include "timer.h"
 
 
-enum class GPSState {GPS_IDLE, GPS_START, GPS_BUSY, GPS_SUCCESS, GPS_TIMEOUT};
+enum class GPSState {GPS_IDLE, GPS_START, GPS_BUSY, GPS_SUCCESS, GPS_TIMEOUT, WAKING_UP};
 
 typedef void (*gps_f)(GPSState,GPSLocation *);
 
@@ -24,6 +24,8 @@ class GPSHandler {
 
     void init();
     void start_tracking(GPSLocation *location, gps_f gps_callback);
+
+    void start_listening();
 
     void read_timed_out();
 
@@ -48,5 +50,6 @@ class GPSHandler {
 
 extern void gpsReadTimeOut();
 
+extern void gpsOtherSerialsLocked();
 
 #endif //__GPSHANDLER_H__

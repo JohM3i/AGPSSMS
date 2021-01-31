@@ -128,6 +128,8 @@ void loop() {
         bicycle.invalidate_gps_coordinates();
         bicycle.phone_number = "";
         bicycle.setStatus(BICYCLE_STATUS::INIT);
+
+        enable_buzzer(3000);
       }
     }
   }

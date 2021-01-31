@@ -113,9 +113,9 @@ struct StoryLowBattery {
     gsm_queue_send_sms(bicycle.phone_number, message, notifyCurrentUserCallback);
   }
 
-  static void notifyCurrentUserCallback(String &response, GSMModuleResponseState state) {
+  static void notifyCurrentUserCallback(bool success) {
     // when we send the sms successfully we disarm
-    is_user_notified = gsm_send_sms_successful(response);
+    is_user_notified = success;
   }
 
   // indicator, if a sms was already send because of the low battery status

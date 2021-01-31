@@ -8,7 +8,7 @@
 // wake_up: a time-based state, where the module goes from sleep mode to ready (SLEEP -> WAKE_UP -> READY)
 // ready: the gsm module is ready to use
 // busy: the module is already communicating with the GSM module and waiting for response
-enum class GSMModuleState {SLEEP, WAKE_UP, READY, BUSY};
+enum class GSMModuleState {SLEEP, WAKE_UP, READY, BUSY, LOCKED};
 
 
 enum class GSMModuleResponseState {TRY_CATCH, READING, SUCCESS, TIMEOUT};
@@ -31,6 +31,9 @@ typedef void (*gsm_success) (bool success);
 typedef void (*gsm_bool_int) (bool success, int value);
 
 typedef void (*gsm_bool_string) (bool success, String &response);
+
+typedef void(* gsm_lock_f) (void);
+
 
 void gsm_init_module(Stream *stream);
 
@@ -95,14 +98,13 @@ void gsm_queue_delete_sms_all(gsm_success callback);
 // If no message found: returns -1
 int gsm_serial_message_received();
 
-static inline bool gsm_send_sms_successful(const String &response) {
-  return response.indexOf("+CMGS:") > -1;
-}
-
-
 void gsm_wakeup();
 
 void gsm_tear_down();
+
+void gsm_lock(gsm_lock_f f);
+
+void gsm_unlock();
 
 class SMSDeleteGuard {
 public:

@@ -24,6 +24,15 @@ void Buffer::read_from_stream(Stream *stream) {
   while(stream->available()) {
     *end = stream->read();
     ++end;
+    
+    #ifdef ARDUINO_DEBUG_SIM
+    
+    if(end - data >= RESPONSE_BUFFER_RESERVE_MEMORY){
+      D_SIM_PRINTLN("FATAL - Buffer Overflow !!");
+      while(true) {}
+    }
+    
+    #endif
   }
 }
 

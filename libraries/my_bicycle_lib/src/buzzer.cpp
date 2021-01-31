@@ -13,16 +13,23 @@ void init_buzzer() {
 }
 
 
+static inline void activeDelayMicros(unsigned long delay) {
+  auto current = micros();
+  while(micros() - current < delay) {};
+}
+
 void enable_buzzer(unsigned long ms_sound, unsigned int repeat, unsigned int delay_ms) {
   for(uint8_t i = 0u; i < repeat; i++) {
     
     // compute the number of square waves
     unsigned long num_waves = (ms_sound * 500) / PWM_STATE_HOLD_IN_MICRO_SECONDS;
-    
     for(unsigned long j = 0ul; j < num_waves; ++j) {
       digitalWrite(BUZZER_PIN, HIGH);
+      
+      //activeDelayMicros(PWM_STATE_HOLD_IN_MICRO_SECONDS);
       delayMicroseconds(PWM_STATE_HOLD_IN_MICRO_SECONDS);
       digitalWrite(BUZZER_PIN, LOW);
+      //activeDelayMicros(PWM_STATE_HOLD_IN_MICRO_SECONDS);
       delayMicroseconds(PWM_STATE_HOLD_IN_MICRO_SECONDS);
     }
 

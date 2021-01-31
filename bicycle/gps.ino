@@ -19,6 +19,10 @@ void gpsReadTimeOut() {
   gps_handler.read_timed_out(); 
 }
 
+void gpsOtherSerialsLocked() {
+  gps_handler.start_listening();
+}
+
 void loop_gps(){
   auto &bicycle = Bicycle::getInstance();
 

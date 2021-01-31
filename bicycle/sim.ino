@@ -35,7 +35,7 @@ struct StorySendStolenSMS {
     gsm_queue_send_sms(bicycle.getInstance().phone_number, message, sendSMSCallback);
   }
 
-  static void sendSMSCallback(String &response, GSMModuleResponseState state) {
+  static void sendSMSCallback(bool success) {
     // nothing to do here ?
   }
 
@@ -77,7 +77,7 @@ class StorySMSReceived {
       return SIM_COMMAND::UNKNOWN;
     }
 
-    static void callbackReadSMS(SMSMessage &message, bool parseSuccessful) {
+    static void callbackReadSMS(bool parseSuccessful, SMSMessage &message) {
       SMSDeleteGuard deleteSMS(current_sms_index, callbackDeleteSMS);
       
       if (!parseSuccessful) {
@@ -180,11 +180,11 @@ class StorySMSReceived {
     }
 
 
-    static void callbackDeleteSMS(String &response, GSMModuleResponseState state) {
+    static void callbackDeleteSMS(bool success) {
 
     }
 
-    static void callbackSendSMS(String &response, GSMModuleResponseState state) {
+    static void callbackSendSMS(bool success) {
 
     }
 
@@ -206,7 +206,7 @@ struct StoryCheckSMSStorage {
     gsm_queue_list_sms(true, listSMSCallback);
   }
 
-  static void listSMSCallback(String &response, GSMModuleResponseState state) {
+  static void listSMSCallback(bool success, String &response) {
     if (response.length() > 0) {
       D_SIM_PRINTLN("SIM process sms storage list: " + response);
       uint8_t start = 0;
@@ -225,7 +225,7 @@ struct StoryCheckSMSStorage {
     }
   }
 
-  static void deleteSMSReadCallback(String &response, GSMModuleResponseState state) {
+  static void deleteSMSReadCallback(bool success) {
     // for now - nothing to do here
   }
 
@@ -242,11 +242,22 @@ struct InitializeGSMModule {
     gsm_init_module(stream);
 
     numTries = 5;
-    gsm_queue_set_text_mode(true, setTextModeCallback);
+    gsm_queue_echo_off(echoOffCallback);
   }
 
-  static void setTextModeCallback(String &response, GSMModuleResponseState state) {
-    if (gsm_response_contains_OK(response)) {
+  static void echoOffCallback(bool success) {
+     if (success) {
+      gsm_queue_set_text_mode(true, setTextModeCallback);
+    } else if (numTries > 0) {
+      --numTries;
+      gsm_queue_echo_off(echoOffCallback);
+    }
+    D_SIM_PRINT(numTries);
+    D_SIM_PRINTLN(" left");
+  }
+
+  static void setTextModeCallback(bool success) {
+    if (success) {
       String sm = "SM";
       gsm_queue_set_preferred_sms_storage(sm, sm, sm, setPreferredSMSStorageCallback);
     } else if (numTries > 0) {
@@ -257,8 +268,8 @@ struct InitializeGSMModule {
     D_SIM_PRINTLN(" left");
   }
 
-  static void setPreferredSMSStorageCallback(String &response, GSMModuleResponseState state) {
-    if (gsm_response_contains_OK(response)) {
+  static void setPreferredSMSStorageCallback(bool success) {
+    if (success) {
       gsm_queue_set_new_message_indication(setNewMessageIndicationCallback);
     } else if (numTries > 0) {
       --numTries;
@@ -269,8 +280,8 @@ struct InitializeGSMModule {
     D_SIM_PRINTLN(" left");
   }
 
-  static void setNewMessageIndicationCallback(String &response, GSMModuleResponseState state) {
-    if (gsm_response_contains_OK(response)) {
+  static void setNewMessageIndicationCallback(bool success) {
+    if (success) {
       String charset = "IRA";
       gsm_queue_set_charset(charset, setCharsetCallback);
     } else if (numTries > 0) {
@@ -281,8 +292,8 @@ struct InitializeGSMModule {
     D_SIM_PRINTLN(" left");
   }
 
-  static void setCharsetCallback(String &response, GSMModuleResponseState state) {
-    if (!gsm_response_contains_OK(response) && numTries > 0) {
+  static void setCharsetCallback(bool success) {
+    if (!success && numTries > 0) {
       --numTries;
       String charset = "IRA";
       gsm_queue_set_charset(charset, setCharsetCallback);
@@ -336,48 +347,4 @@ void loop_sim() {
   }
 
   REG_STATUS &= ~(1 << LOOP_SIM);
-}
-
-bool init_gsm() {
-  /*D_SIM_PRINT("sms initialization complete: ");
-    bool retVal = sms.initSMS(5);
-
-    if (!retVal) {
-    D_SIM_PRINT("sms initialization failed: ");
-    enable_buzzer(100, 3, 50);
-    delay(1000);
-    }
-
-    if (!sms.isSimInserted()) {
-    D_SIM_PRINTLN("No SIM-Kart found: ");
-    enable_buzzer(100, 5, 50);
-    delay(1000);
-    }
-
-
-
-    D_SIM_PRINTLN(retVal);
-
-    bool is_registered = sms.isRegistered();
-
-    if (!is_registered) {
-    for (uint8_t i = 0; i < 4 && !sms.isRegistered(); ++i) {
-      delay(2000);
-      is_registered = sms.isRegistered();
-    }
-
-    if (!is_registered) {
-      D_SIM_PRINTLN("No Registered in network: ");
-      enable_buzzer(100, 4, 50);
-    }
-    }
-
-
-    D_SIM_PRINT("is Module Registered to Network?... ");
-    D_SIM_PRINTLN(sms.isRegistered());
-
-    D_SIM_PRINT("Signal Quality... ");
-    D_SIM_PRINTLN(sms.signalQuality());
-    return retVal;*/
-  return false;
 }

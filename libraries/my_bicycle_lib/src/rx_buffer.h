@@ -40,6 +40,8 @@ public:
   
   virtual bool is_repeatable() {return false;}
   
+  virtual bool is_part_of_chained_commando () {return false;}
+  
 protected:
   String catchable_;
   unsigned int match_index_ = 0;
@@ -156,6 +158,9 @@ public:
   virtual bool is_read_body_done(char *& start, char * end) override {return true;}
 
   virtual void fire_callback(bool success) override {}
+
+  virtual bool is_part_of_chained_commando () override {return true;}
+
 };
 
 class SendSMSReader : public Abstract_RX_Buffer_Reader {
@@ -166,6 +171,10 @@ public:
   virtual bool is_read_body_done(char *& start, char * end) override;
 
   virtual void fire_callback(bool success) override;
+  
+  
+  virtual bool is_part_of_chained_commando () override {return true;}
+  
 private:
    gsm_success callback_;
    AdvanceInclusiveTill advance_to_OK_;
